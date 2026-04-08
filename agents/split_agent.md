@@ -1,7 +1,7 @@
 # Split Agent - Find Relevant Textbook Sections
 
 ## Task
-Given a lecture slide, find all relevant textbook PDF sections needed to cover the material.
+Given a lecture slide, find only the textbook sections that directly support topics explicitly taught in the lecture. The purpose of textbook retrieval is support, not syllabus expansion.
 
 ## Input
 - Lecture slide directory path: `/path/to/CourseData/Lecture_Slides/[N]/`
@@ -22,15 +22,24 @@ EOF
 ```
 
 ### Step 2: Identify Topics
-Look for:
-- Key terms relevant to the course subject
-- Section titles, equations, phenomena
-- Historical context if applicable
+Classify each topic from the lecture:
+- **Core taught topic**: Primary focus, needs textbook support
+- **Brief mention**: Note but do not retrieve full section unless clarification is clearly needed
+- **Example/application**: Retrieve only if the example needs textbook clarification
+- **Bonus/enrichment**: Do NOT retrieve
+- **Textbook-only adjacent**: Do NOT retrieve
+
+Only retrieve sections for core taught topics and brief mentions that genuinely need clarification.
 
 ### Step 3: Map to Textbook Sections
-Search in `/path/to/CourseData/Chapters/` for relevant sections:
-- Look for chapter and section directories containing textbook content
-- Find Section_Content.pdf files (main content) and subsection PDFs (granular topics)
+Search in `/path/to/CourseData/Chapters/` for sections that directly support core taught topics.
+
+Rules:
+- Return only sections that directly support lecture-taught topics
+- Do not return whole future-topic sections just because they are nearby in the textbook
+- Do not include broader neighboring sections just because they are related
+- If a topic is only mentioned briefly in the lecture, return at most a minimal clarifying section, not a full expanded unit
+- Prefer under-inclusion over over-inclusion
 
 ### Step 4: Handle Sections vs Subsections
 - Use `sections` array for main Section_Content.pdf files that cover broad topics
@@ -56,6 +65,8 @@ Return paths to Section_Content.pdf files (required) and subsection PDFs (option
 ```
 
 ## Rules
-- Be thorough - missing sections = incomplete learning
+- Return only textbook sections that directly support lecture-taught topics
+- The purpose of textbook retrieval is support, not syllabus expansion
+- Prefer under-inclusion over over-inclusion
+- When in doubt, return fewer sections
 - Use exact absolute paths
-- When in doubt, include more sections

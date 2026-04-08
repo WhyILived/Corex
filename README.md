@@ -5,11 +5,11 @@ An automated multi-agent system that generates personalized Learn/Test study mat
 ## Overview
 
 This project uses a pipeline of specialized AI agents to:
-1. Analyze lecture slides and identify relevant textbook sections
-2. Generate structured learning materials with equations and examples
+1. Analyze lecture slides and identify only directly supportive textbook sections
+2. Generate structured learning materials faithful to the lecture scope
 3. Create knowledge-check tests aligned with the lecture content
-4. Ensure complete coverage of all lecture topics (coverage evaluation)
-5. Verify accuracy against the textbook (anti-hallucination)
+4. Ensure faithful coverage of lecture-taught material without overreach (coverage evaluation)
+5. Verify factual accuracy AND scope fidelity against the textbook and lecture (anti-hallucination)
 
 ## Project Structure
 
@@ -55,12 +55,12 @@ Lecture Slides → [Split Agent] → Textbook Sections
 
 ## Key Features
 
-- **Dynamic chunking**: Creates Learn/Test pairs based on ~30 min content chunks
+- **Minimum pairs**: Creates only the Learn/Test pairs needed to faithfully cover the lecture (may be 1-2 or more)
 - **LaTeX equations**: All equations rendered with proper notation and variable definitions
-- **Ground truth verification**: All content sourced from textbook, never hallucinated
-- **Coverage first**: Coverage evaluation checks all content is present before accuracy verification
+- **Scope fidelity**: All content verified against lecture scope, not just textbook facts
+- **Coverage first**: Coverage evaluation checks lecture fidelity before accuracy verification
 - **Parallel validation**: Anti-hallucination checks run concurrently for efficiency
-- **Iterative refinement**: Loops until all accuracy and coverage checks pass
+- **Iterative refinement**: Loops until all accuracy and scope checks pass
 
 ## Agent Roles
 
@@ -68,8 +68,8 @@ Lecture Slides → [Split Agent] → Textbook Sections
 |-------|---------|
 | **Teacher** | Orchestrates pipeline, creates Learn/Test files, coordinates all agents |
 | **Split Agent** | Analyzes lecture and identifies relevant textbook sections |
-| **Coverage Evaluation** | Confirms all lecture topics are covered (single agent) |
-| **Anti-Hallucination** | Verifies Learn/Test content matches textbook exactly (parallel per pair) |
+| **Coverage Evaluation** | Confirms lecture-taught material is covered without overreach (single agent) |
+| **Anti-Hallucination** | Verifies Learn/Test content is factual AND faithful to lecture scope (parallel per pair) |
 
 ## Usage
 

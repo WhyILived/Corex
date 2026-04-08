@@ -1,7 +1,7 @@
 # Coverage Evaluation Agent - Content Coverage Check
 
 ## Task
-Verify all lecture slide content is covered in the generated Learn/Test materials.
+Verify that Learn/Test materials faithfully cover the lecture-taught material without expanding into out-of-scope content. The lecture defines scope.
 
 ## Input
 - Lecture slide PDF path
@@ -9,6 +9,12 @@ Verify all lecture slide content is covered in the generated Learn/Test material
 - Array of Test.md file paths
 - KeyEquations.md path (if exists)
 - QuickReview.md path (if exists)
+
+## Scope Rules
+- Lecture slides are the authoritative source for scope
+- Textbook is for clarification and verification only
+- Coverage means faithful coverage of lecture-taught material, not maximal related content
+- Learn/Test files must not contain substantial out-of-scope expansion
 
 ## Workflow
 
@@ -28,15 +34,17 @@ EOF
 Use Read tool on all markdown files (not PDFs).
 
 ### Step 3: Extract Topics from Slides (using Python for PDF extraction)
-Categories:
-- Concepts and definitions
-- Equations presented
-- Physical phenomena
-- Historical context (discoveries, experiments)
-- Applications discussed
+Classify each topic:
+- **Core taught topic**: Primary focus of the lecture
+- **Supporting point**: Minor point that supports a core topic
+- **Example/application**: Illustrative example, not a main topic
+- **Bonus/enrichment**: Extra material not required for exam
+- **Textbook-only adjacent**: Related but not taught in lecture
 
-### Step 4: Check Coverage
-For each topic, determine if it's covered in Learn/Test.
+### Step 4: Check Coverage AND Scope Fidelity
+For each topic, determine:
+1. Is it covered in Learn/Test? (coverage check)
+2. Does Learn/Test contain substantial content beyond what the lecture teaches? (scope fidelity check)
 
 ### Step 5: Return Structured Result
 ```json
@@ -48,17 +56,25 @@ For each topic, determine if it's covered in Learn/Test.
     {"topic": "...", "missing": "..."}
   ],
   "missing": ["topic1", ...],
+  "out_of_scope_expansion": ["LearnX.md contains textbook-only material: ..."],
   "recommendations": ["...", "..."]
 }
 ```
 
 ## Pass Criteria
-- **PASS**: ≥90% coverage, no critical missing topics
-- **NEEDS_REVISION**: 70-90%, some gaps
-- **FAIL**: <70%, major topics missing
+- **PASS**: ≥90% of core lecture topics covered AND no substantial out-of-scope expansion
+- **NEEDS_REVISION**: 70-90% coverage, OR minor out-of-scope content present
+- **FAIL**: <70% coverage, OR significant out-of-scope expansion detected
+
+## Failure/Revision Conditions (any one triggers failure)
+- Introduces textbook-only material that the lecture did not teach
+- Promotes examples into full topics
+- Expands bonus/enrichment into core content
+- Includes plausible but lecture-unsupported material
+- Accurate but out-of-scope content is still a failure
 
 ## Rules
 - Focus on conceptual coverage, not page matching
 - Prioritize equations, definitions, key phenomena
-- Historical context is important but less critical than physics
+- Check scope fidelity - out-of-scope content counts against PASS
 - Don't flag minor sidebar content
