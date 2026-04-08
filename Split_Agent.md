@@ -10,8 +10,9 @@ Given a lecture slide, find all relevant textbook PDF sections needed to cover t
 ## Workflow
 
 ### Step 1: Extract Lecture Text
+Replace `/path/to/venv/bin/python3` with your Python venv path that has pymupdf installed:
 ```bash
-/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3 << 'EOF'
+/path/to/venv/bin/python3 << 'EOF'
 import fitz
 doc = fitz.open("/full/path/to/lecture.pdf")
 for i, page in enumerate(doc):

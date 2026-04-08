@@ -33,29 +33,31 @@ Lecture Slides → [Split Agent] → Textbook Sections
                                       ↓
                            [Teacher Agent creates Learn/Test]
                                       ↓
-                           [Anti-Hallucination Check] ← Textbook
-                                      ↓ (loop until PASS)
-                           [Final Evaluation] ← Lecture Slides
+              [Anti-Hallucination - parallel agents per pair]
+                                      ↓ (loop until all PASS)
+                    [Final Evaluation - single agent]
                                       ↓ (loop until PASS)
                               Final Materials
 ```
 
 ## Setup
 
-1. **Python Environment** (already configured):
+1. **Python Environment**:
    ```bash
    cd /path/to/Corex
-   source .venv/bin/activate  # or use .venv/bin/python3
+   # Create venv if needed:
+   python3 -m venv .venv
+   .venv/bin/pip install pymupdf
    ```
 
-2. **PDF Extraction** uses pymupdf - already installed in `.venv`
+2. **Update Python paths**: When running agents, replace `/path/to/venv/bin/python3` in the Python commands with your actual venv path.
 
 ## Key Features
 
 - **Dynamic chunking**: Creates Learn/Test pairs based on ~30 min content chunks
 - **LaTeX equations**: All equations rendered with proper notation and variable definitions
 - **Ground truth verification**: All content sourced from textbook, never hallucinated
-- **Parallel validation**: Multiple content checks run concurrently for efficiency
+- **Parallel validation**: Anti-hallucination checks run concurrently for efficiency
 - **Iterative refinement**: Loops until all accuracy and coverage checks pass
 
 ## Agent Roles
@@ -64,8 +66,8 @@ Lecture Slides → [Split Agent] → Textbook Sections
 |-------|---------|
 | **Teacher** | Orchestrates pipeline, creates Learn/Test files, coordinates all agents |
 | **Split Agent** | Analyzes lecture and identifies relevant textbook sections |
-| **Anti-Hallucination** | Verifies Learn/Test content matches textbook exactly |
-| **Final Evaluation** | Confirms all lecture topics are covered |
+| **Anti-Hallucination** | Verifies Learn/Test content matches textbook exactly (parallel per pair) |
+| **Final Evaluation** | Confirms all lecture topics are covered (single agent) |
 
 ## Usage
 
@@ -79,4 +81,4 @@ The pipeline is designed to be run by a parent agent. To process a lecture:
 
 - PDF files are excluded from git (too large, proprietary content)
 - Generated materials can be regenerated from lecture slides + textbook
-- The `.venv/` directory is also excluded - recreate with `python3 -m venv .venv && .venv/bin/pip install pymupdf`
+- Python venv is excluded - recreate with `python3 -m venv .venv && .venv/bin/pip install pymupdf`

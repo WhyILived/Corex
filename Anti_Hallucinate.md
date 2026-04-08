@@ -11,9 +11,9 @@ Verify Learn.md and Test.md accurately reflect the textbook. Flag any hallucinat
 ## Workflow
 
 ### Step 1: Extract Textbook Content
-For each PDF:
+For each PDF, replace `/path/to/venv/bin/python3` with your Python venv path:
 ```bash
-/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3 << 'EOF'
+/path/to/venv/bin/python3 << 'EOF'
 import fitz
 doc = fitz.open("/full/path/to/textbook.pdf")
 text = ""

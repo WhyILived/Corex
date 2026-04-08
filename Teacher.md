@@ -22,12 +22,16 @@ You coordinate the pipeline at key checkpoints. You create the Learn/Test files 
 - Use the textbook section paths from Step 2
 - Read textbook content by running Python (see Python section)
 - Read lecture slides by running Python
-- Analyze how much content is in the lecture (it may be 1 topic or 5 topics)
-- Create files in ~30 minute chunks until ALL lecture content is covered:
-  - If the lecture has ~45 min of content: create Learn1.md + Test1.md only
-  - If the lecture has ~60 min of content: create Learn1.md + Test1.md + Learn2.md + Test2.md 
-  - If the lecture has ~90 min of content: create Learn1-3.md + Test1-3.md
-  - Also always create: KeyEquations.md, QuickReview.md
+- Analyze the content to determine what topics are covered:
+  - Look at section headers, key equations, and major concepts in the lecture
+  - Look at what topics the textbook sections cover
+  - Match lecture topics to textbook sections
+- Create Learn/Test file pairs for each major topic/chunk (~30 min each):
+  - Read the relevant textbook section for that topic
+  - Create Learn[N].md explaining the concepts, equations, and key points
+  - Create Test[N].md with questions that test understanding of Learn[N]
+- Continue until ALL lecture content is covered (even if that's just 1 pair or up to 5+ pairs)
+- Also always create: KeyEquations.md (all equations collected), QuickReview.md (concise summary)
 - Save all files to `/path/to/CourseData/Lecture_Slides/[N]/`
 
 **STEP 4: Anti-Hallucination Check - PARALLEL LOOP**
@@ -49,17 +53,24 @@ You coordinate the pipeline at key checkpoints. You create the Learn/Test files 
 
 4. **Repeat loop** until all pairs pass.
 
-**STEP 5: Final Evaluation - PARALLEL LOOP**
+**STEP 5: Final Evaluation - LOOP**
 
-1. **Initial parallel spawn**: Spawn Final Eval Agents for all Learn/Test pairs at the same time (they can evaluate coverage collectively).
+1. **Spawn Final Eval Agent** (ONE agent, not multiple):
+   - Give sub-agent: `Final_Eval.md` as context
+   - Give sub-agent: lecture slide PDF path, all Learn/Test paths, KeyEquations.md, QuickReview.md
 
 2. **Collect result**: Wait for the agent to complete.
 
 3. **Check result**:
    - If `status = "PASS"`: Move to Step 6
-   - If `status = "NEEDS_REVISION"`:
+   - If `status = "NEEDS_REVISION"`: 
+     - Read the agent's feedback
      - Edit the files to fix the issues
-     - Spawn Final Eval Agent again (loop until PASS)
+     - Go back to "Spawn Final Eval Agent" (loop until PASS)
+   - If `status = "FAIL"` (coverage <70%):
+     - Read the agent's feedback about what's missing
+     - Major content is missing - this may require creating new Learn/Test sections
+     - After fixing, go back to "Spawn Final Eval Agent" (loop until PASS or NEEDS_REVISION)
 
 **STEP 6: Done**
 Output summary of created files.
@@ -78,10 +89,14 @@ for i, page in enumerate(doc):
 EOF
 ```
 
+**IMPORTANT**: Replace `/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3` with the path to your Python venv that has pymupdf installed. If pymupdf is not installed, run:
+```bash
+python3 -m venv /path/to/your/venv && /path/to/your/venv/bin/pip install pymupdf
+```
+
 Rules for Python:
-- ALWAYS use `/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3` (this venv has pymupdf installed)
-- NEVER use plain `python3`
-- NEVER try to install pymupdf - it is already there
+- ALWAYS use the venv Python that has pymupdf installed
+- NEVER use plain `python3` unless pymupdf is system-installed
 - Use absolute paths in `fitz.open()`
 - Use `<< 'EOF'` heredoc syntax exactly as shown
 

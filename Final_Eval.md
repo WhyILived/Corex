@@ -13,8 +13,9 @@ Verify all lecture slide content is covered in the generated Learn/Test material
 ## Workflow
 
 ### Step 1: Extract Lecture Slide Content
+Replace `/path/to/venv/bin/python3` with your Python venv path:
 ```bash
-/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3 << 'EOF'
+/path/to/venv/bin/python3 << 'EOF'
 import fitz
 doc = fitz.open("/full/path/to/lecture.pdf")
 for i, page in enumerate(doc):
