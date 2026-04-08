@@ -13,7 +13,7 @@ Verify all lecture slide content is covered in the generated Learn/Test material
 ## Workflow
 
 ### Step 1: Extract Lecture Slide Content
-Replace `/path/to/venv/bin/python3` with your Python venv path:
+Use your Python venv that has pymupdf installed:
 ```bash
 /home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3 << 'EOF'
 import fitz
