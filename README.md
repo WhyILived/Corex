@@ -8,22 +8,23 @@ This project uses a pipeline of specialized AI agents to:
 1. Analyze lecture slides and identify relevant textbook sections
 2. Generate structured learning materials with equations and examples
 3. Create knowledge-check tests aligned with the lecture content
-4. Verify accuracy against the textbook (anti-hallucination)
-5. Ensure complete coverage of all lecture topics
+4. Ensure complete coverage of all lecture topics (final evaluation)
+5. Verify accuracy against the textbook (anti-hallucination)
 
 ## Project Structure
 
 ```
 Corex/
-├── Teacher.md           # Main pipeline orchestrator
-├── Split_Agent.md       # Finds relevant textbook sections
-├── Anti_Hallucinate.md  # Verifies content accuracy
-├── Final_Eval.md        # Checks coverage completeness
-├── CourseData/          # Course-specific content (textbooks, slides)
-│   ├── Chapters/        # Split textbook PDFs (by chapter/section)
-│   └── Lecture_Slides/  # Original slides + generated materials
+├── Teacher.md              # Main pipeline orchestrator
+├── agents/
+│   ├── split_agent.md      # Finds relevant textbook sections
+│   ├── final_eval_agent.md # Checks coverage completeness
+│   └── anti_hallucinate_agent.md  # Verifies content accuracy
+├── CourseData/             # Course-specific content (textbooks, slides)
+│   ├── Chapters/          # Split textbook PDFs (by chapter/section)
+│   └── Lecture_Slides/     # Original slides + generated materials
 └── Docs/
-    └── Source_Books/    # Original textbook PDFs (not committed)
+    └── Source_Books/       # Original textbook PDFs (not committed)
 ```
 
 ## Pipeline Flow
@@ -31,12 +32,12 @@ Corex/
 ```
 Lecture Slides → [Split Agent] → Textbook Sections
                                       ↓
-                           [Teacher Agent creates Learn/Test]
+                         [Teacher Agent creates Learn/Test]
                                       ↓
-              [Anti-Hallucination - parallel agents per pair]
-                                      ↓ (loop until all PASS)
                     [Final Evaluation - single agent]
                                       ↓ (loop until PASS)
+              [Anti-Hallucination - parallel agents per pair]
+                                      ↓ (loop until all PASS)
                               Final Materials
 ```
 
@@ -57,6 +58,7 @@ Lecture Slides → [Split Agent] → Textbook Sections
 - **Dynamic chunking**: Creates Learn/Test pairs based on ~30 min content chunks
 - **LaTeX equations**: All equations rendered with proper notation and variable definitions
 - **Ground truth verification**: All content sourced from textbook, never hallucinated
+- **Coverage first**: Final evaluation checks all content is present before accuracy verification
 - **Parallel validation**: Anti-hallucination checks run concurrently for efficiency
 - **Iterative refinement**: Loops until all accuracy and coverage checks pass
 
@@ -66,8 +68,8 @@ Lecture Slides → [Split Agent] → Textbook Sections
 |-------|---------|
 | **Teacher** | Orchestrates pipeline, creates Learn/Test files, coordinates all agents |
 | **Split Agent** | Analyzes lecture and identifies relevant textbook sections |
-| **Anti-Hallucination** | Verifies Learn/Test content matches textbook exactly (parallel per pair) |
 | **Final Evaluation** | Confirms all lecture topics are covered (single agent) |
+| **Anti-Hallucination** | Verifies Learn/Test content matches textbook exactly (parallel per pair) |
 
 ## Usage
 

@@ -13,7 +13,7 @@ You coordinate the pipeline at key checkpoints. You create the Learn/Test files 
 - Task: Identify lecture number N from the path (N = 1 in the example)
 
 **STEP 2: Spawn Split Agent**
-- Give sub-agent: `Split_Agent.md` as context
+- Give sub-agent: `agents/split_agent.md` as context
 - Give sub-agent: lecture slide directory path and filename
 - Receive back: JSON with `sections` array of textbook PDF paths
 - These sections contain the textbook content that covers the lecture material
@@ -34,7 +34,27 @@ You coordinate the pipeline at key checkpoints. You create the Learn/Test files 
 - Also always create: KeyEquations.md (all equations collected), QuickReview.md (concise summary)
 - Save all files to `/path/to/CourseData/Lecture_Slides/[N]/`
 
-**STEP 4: Anti-Hallucination Check - PARALLEL LOOP**
+**STEP 4: Final Evaluation - LOOP**
+First check coverage before checking accuracy - we want all content present before verifying correctness.
+1. **Spawn Final Eval Agent** (ONE agent, not multiple):
+   - Give sub-agent: `agents/final_eval_agent.md` as context
+   - Give sub-agent: lecture slide PDF path, all Learn/Test paths, KeyEquations.md, QuickReview.md
+
+2. **Collect result**: Wait for the agent to complete.
+
+3. **Check result**:
+   - If `status = "PASS"`: Move to Step 5
+   - If `status = "NEEDS_REVISION"`: 
+     - Read the agent's feedback
+     - Edit the files to fix the issues
+     - Go back to "Spawn Final Eval Agent" (loop until PASS)
+   - If `status = "FAIL"` (coverage <70%):
+     - Read the agent's feedback about what's missing
+     - Major content is missing - this may require creating new Learn/Test sections
+     - After fixing, go back to "Spawn Final Eval Agent" (loop until PASS or NEEDS_REVISION)
+
+**STEP 5: Anti-Hallucination Check - PARALLEL LOOP**
+Now verify correctness of all content - only after we've confirmed all content is present.
 
 1. **Initial parallel spawn**: Spawn Anti-Hallucination Agents for ALL Learn/Test pairs at the same time:
    - Agent for Learn1+Test1
@@ -45,32 +65,13 @@ You coordinate the pipeline at key checkpoints. You create the Learn/Test files 
 2. **Collect all results**: Wait for all agents to complete.
 
 3. **Check results**:
-   - If ALL pairs have `status = "PASS"`: Move to Step 5
+   - If ALL pairs have `status = "PASS"`: Move to Step 6
    - If SOME pairs have `status = "NEEDS_REVISION"`: 
      - For each pair that failed: edit that specific Learn/Test file to fix the issues
      - Then spawn NEW agents in parallel ONLY for the failed pairs
      - Go back to "Collect all results" above (repeat loop)
 
 4. **Repeat loop** until all pairs pass.
-
-**STEP 5: Final Evaluation - LOOP**
-
-1. **Spawn Final Eval Agent** (ONE agent, not multiple):
-   - Give sub-agent: `Final_Eval.md` as context
-   - Give sub-agent: lecture slide PDF path, all Learn/Test paths, KeyEquations.md, QuickReview.md
-
-2. **Collect result**: Wait for the agent to complete.
-
-3. **Check result**:
-   - If `status = "PASS"`: Move to Step 6
-   - If `status = "NEEDS_REVISION"`: 
-     - Read the agent's feedback
-     - Edit the files to fix the issues
-     - Go back to "Spawn Final Eval Agent" (loop until PASS)
-   - If `status = "FAIL"` (coverage <70%):
-     - Read the agent's feedback about what's missing
-     - Major content is missing - this may require creating new Learn/Test sections
-     - After fixing, go back to "Spawn Final Eval Agent" (loop until PASS or NEEDS_REVISION)
 
 **STEP 6: Done**
 Output summary of created files.
@@ -80,7 +81,7 @@ Output summary of created files.
 To read ANY PDF (lecture slides or textbook), run this EXACT command:
 
 ```
-/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3 << 'EOF'
+/path/to/venv/bin/python3 << 'EOF'
 import fitz
 doc = fitz.open("/full/path/to/file.pdf")
 for i, page in enumerate(doc):
@@ -89,7 +90,7 @@ for i, page in enumerate(doc):
 EOF
 ```
 
-**IMPORTANT**: Replace `/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3` with the path to your Python venv that has pymupdf installed. If pymupdf is not installed, run:
+**IMPORTANT**: Replace `/path/to/venv/bin/python3` with the path to your Python venv that has pymupdf installed. If pymupdf is not installed, run:
 ```bash
 python3 -m venv /path/to/your/venv && /path/to/your/venv/bin/pip install pymupdf
 ```
@@ -101,7 +102,7 @@ Rules for Python:
 - Use `<< 'EOF'` heredoc syntax exactly as shown
 
 ## Rules About Sub-Agent Files
-- You MUST NOT read Split_Agent.md, Anti_Hallucinate.md, or Final_Eval.md
+- You MUST NOT read files in the `agents/` directory
 - Those files are for sub-agents only. You provide them as context when spawning.
 - You coordinate the pipeline - you do not need to understand the sub-agent instructions.
 
