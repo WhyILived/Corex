@@ -1,54 +1,87 @@
-# KeyEquations: Introduction to Quantum Mechanics
+# KeyEquations: All Equations Collected
+> Quick reference for Lecture 1
 
-## Wave Properties of Light
+## Quantum Mechanics Basics
 
-| Equation | Description |
-|----------|-------------|
-| $E_y(x, t) = E_0 \sin(kx - \omega t)$ | Electric field of EM wave |
-| $c = \frac{\omega}{k} = f\lambda$ | Speed of light relation |
-| $I = \frac{1}{2}c\epsilon_0 E_0^2$ | Wave intensity |
-| $S_1P - S_2P = n\lambda$ | Constructive interference (Young's) |
-| $2d\sin\theta = n\lambda$ | Bragg's diffraction law |
+### Photon Properties
+$$E = hf \quad \text{(photon energy)}$$
+Where: $E$ = energy (J), $h = 6.63 \times 10^{-34}$ J·s, $f$ = frequency (Hz)
 
-## Photon Properties
+$$p = \frac{h}{\lambda} \quad \text{(photon momentum)}$$
+Where: $p$ = momentum (kg·m/s), $\lambda$ = wavelength (m)
 
-| Equation | Description |
-|----------|-------------|
-| $E_{ph} = hf = \frac{hc}{\lambda}$ | Photon energy |
-| $p = \frac{h}{\lambda}$ | Photon momentum |
-| $E = \hbar\omega, \quad p = \hbar k$ | Photon energy/momentum in wave terms |
-| $I = \Gamma_{ph}hf$ | Light intensity from photon flux |
+$$K_E = hf - \Phi \quad \text{(photoelectric effect)}$$
+Where: $K_E$ = electron kinetic energy, $\Phi$ = work function
 
-## Photoelectric Effect
+$$I = \Gamma_{ph}hf \quad \text{(light intensity)}$$
+Where: $\Gamma_{ph} = \Delta N_{ph}/(A \Delta t)$ = photon flux density
 
-| Equation | Description |
-|----------|-------------|
-| $KEm = hf - \Phi$ | Maximum kinetic energy of emitted electron |
-| $eV_0 = KEm$ | Stopping voltage relation |
-| $\Phi = hf_0$ | Work function and threshold frequency |
+### de Broglie Relations
+$$\lambda = \frac{h}{p} \quad \text{(de Broglie wavelength)}$$
+$$E = hf = \hbar\omega \quad \text{(photon energy in angular form)}$$
 
-## Wave-Particle Duality for Matter
+### Black Body Radiation
+$$I_\lambda = \frac{2\pi hc^2}{\lambda^5[\exp(\frac{hc}{\lambda kT}) - 1]} \quad \text{(Planck's law)}$$
+$$P_S = \sigma_S T^4 \quad \text{(Stefan-Boltzmann)}$$
+Where: $\sigma_S = 5.670 \times 10^{-8}$ W/m²·K⁴
 
-| Equation | Description |
-|----------|-------------|
-| $\lambda = \frac{h}{p}$ | de Broglie wavelength |
-| $p = mv$ | Particle momentum |
-| $KE = eV = \frac{p^2}{2m_e}$ | Electron kinetic energy from voltage |
-| $\lambda = \frac{h}{\sqrt{2m_e eV}}$ | Electron wavelength from accelerating voltage |
+$$\lambda_{max}T \approx 2.89 \times 10^{-3} \text{ m·K} \quad \text{(Wien's displacement)}$$
 
-## Stern-Gerlach Experiment
+## Wave Equation
 
-| Equation | Description |
-|----------|-------------|
-| $\hat{H} = -\vec{\mu} \cdot \vec{B}$ | Magnetic moment Hamiltonian |
+### Wave Equation
+$$\nabla^2 u - \frac{1}{c^2}\frac{\partial^2 u}{\partial t^2} = 0 \quad \text{(general wave equation)}$$
 
-## Fundamental Constants
+### Traveling Wave Solution
+$$E(z,t) = E_0 \cos(kz - \omega t + \phi_0)$$
+Where:
+- $E_0$ = amplitude
+- $k = 2\pi/\lambda$ = wavenumber
+- $\omega = 2\pi f$ = angular frequency
+- $\phi_0$ = phase constant
 
+### Wave Parameters
+$$\omega = \frac{2\pi}{T} \quad \text{(angular frequency)}$$
+$$k = \frac{2\pi}{\lambda} \quad \text{(wavenumber)}$$
+$$c = f\lambda = \frac{\omega}{k} \quad \text{(phase velocity)}$$
+
+## Vector Calculus Operators
+$$\nabla \phi = \frac{\partial \phi}{\partial x}\hat{x} + \frac{\partial \phi}{\partial y}\hat{y} + \frac{\partial \phi}{\partial z}\hat{z} \quad \text{(gradient: scalar} \rightarrow \text{vector)}$$
+$$\nabla \cdot \vec{A} = \frac{\partial A_x}{\partial x} + \frac{\partial A_y}{\partial y} + \frac{\partial A_z}{\partial z} \quad \text{(divergence: vector} \rightarrow \text{scalar)}$$
+$$\nabla \times \vec{A} = \left(\frac{\partial A_z}{\partial y} - \frac{\partial A_y}{\partial z}\right)\hat{x} + \ldots \quad \text{(curl: vector} \rightarrow \text{vector)}$$
+$$\nabla^2 \phi = \frac{\partial^2 \phi}{\partial x^2} + \frac{\partial^2 \phi}{\partial y^2} + \frac{\partial^2 \phi}{\partial z^2} \quad \text{(scalar Laplacian)}$$
+
+## Heisenberg Uncertainty Principle
+$$\Delta x \cdot \Delta p_x \gtrsim \hbar \quad \text{(position-momentum)}$$
+$$\Delta E \cdot \Delta t \gtrsim \hbar \quad \text{(energy-time)}$$
+Where: $\hbar = h/(2\pi) = 1.055 \times 10^{-34}$ J·s
+
+## Hydrogen Atom
+
+### Quantum Numbers
+| Number | Symbol | Values | Quantizes |
+|--------|--------|--------|-----------|
+| Principal | $n$ | 1, 2, 3, ... | Energy |
+| Orbital | $\ell$ | 0, 1, 2, ..., n-1 | Angular momentum magnitude |
+| Magnetic | $m_\ell$ | $-\ell, ..., +\ell$ | Angular momentum z-component |
+| Spin | $m_s$ | $\pm 1/2$ | Spin z-component |
+
+### Energy Levels
+$$E_n = -\frac{13.6 \text{ eV}}{n^2} \quad \text{(hydrogen energy)}$$
+$$L = \hbar\sqrt{\ell(\ell+1)} \quad \text{(orbital angular momentum)}$$
+$$L_z = m_\ell\hbar \quad \text{(angular momentum z-component)}$$
+$$S_z = m_s\hbar = \pm \hbar/2 \quad \text{(spin z-component)}$$
+
+### Selection Rules
+$$\Delta \ell = \pm 1$$
+$$\Delta m_\ell = 0, \pm 1$$
+
+## Constants Reference
 | Constant | Symbol | Value |
 |----------|--------|-------|
-| Planck's constant | $h$ | $6.6 \times 10^{-34}$ J·s |
-| Reduced Planck's constant | $\hbar$ | $1.05 \times 10^{-34}$ J·s |
+| Planck's constant | $h$ | $6.63 \times 10^{-34}$ J·s |
+| Reduced Planck | $\hbar$ | $1.055 \times 10^{-34}$ J·s |
 | Speed of light | $c$ | $3 \times 10^8$ m/s |
-| Electron mass | $m_e$ | $9.1 \times 10^{-31}$ kg |
-| Elementary charge | $e$ | $1.6 \times 10^{-19}$ C |
-| Permittivity of free space | $\epsilon_0$ | $8.85 \times 10^{-12}$ F/m |
+| Stefan constant | $\sigma_S$ | $5.670 \times 10^{-8}$ W/m²·K⁴ |
+| Electron mass | $m_e$ | $9.11 \times 10^{-31}$ kg |
+| Bohr radius | $a_0$ | $0.0529$ nm |

@@ -1,185 +1,103 @@
-# Learn1: Light as a Wave and Wave-Particle Duality
+# Learn1: Quantum Mechanics & Wave-Particle Duality
 > Estimated time: ~30 minutes
 
-## Section 1: Brief History of the Science of Light
+## Section 1: Why Quantum Mechanics?
+Classical physics (circa 1900) could not explain certain phenomena:
+- **Discrete atomic spectra**: Atoms emit light only at specific wavelengths, not continuously
+- **Photoelectric effect**: Electrons ejected from metal depend on light frequency, not intensity
 
-### Newton's Particle Theory (17th-18th century)
-Sir Isaac Newton proposed that light consists of particles (corpuscles) that bounce around and get reflected from objects. This explained reflection but struggled with refraction.
+These unexplained phenomena led to quantum mechanics development:
+- Schrödinger: "wave" mechanics
+- Heisenberg: "matrix" mechanics
 
-### Maxwell's Wave Theory (19th century)
-James Clerk Maxwell introduced Maxwell Equations - the basic theory of electromagnetism. He showed that light is an electromagnetic wave. This explained interference, diffraction, and refraction phenomena.
+## Section 2: Light as Particles - Photons
+Historically, understanding of light evolved:
+- **Newton**: Light consists of particles
+- **Maxwell**: Light is an electromagnetic wave
+- **Planck, Einstein**: Light is both wave AND particle (wave-particle duality)
 
-### Planck and Einstein's Quantum Theory (early 20th century)
-Max Planck and Albert Einstein proposed that light is both a wave and a set of particles called photons. This is the **wave-particle duality** - light exhibits both wave and particle properties depending on the experiment.
+Light consists of discrete energy packets called **photons**.
 
-### Key Historical Discoveries
-- **William Herschel (1800)**: Discovered infrared light ("heating" radiation)
-- **Johann Wilhelm Ritter (1801)**: Discovered ultraviolet light (1801) ("chemical/oxidizing" rays)
-- **Joseph von Fraunhofer (1787-1826)**: Developed transparent glass, spectrometer, and discovered spectral lines
+## Section 3: The Photoelectric Effect
+When light strikes a metal surface, electrons can be emitted. Key observations:
+- Electron kinetic energy depends on light **frequency** (not intensity)
+- There is a threshold frequency f₀ below which no electrons are emitted
+- Increasing light intensity increases number of electrons, not their energy
 
-## Section 2: Light as an Electromagnetic Wave
-
-Light is an electromagnetic (EM) wave that propagates through space. The electric field Ey at position x at time t is described by:
-
-$$E_y(x, t) = E_0 \sin(kx - \omega t)$$
-
-Where:
-- $E_0$ = amplitude of the electric field
-- $k = 2\pi/\lambda$ = wavenumber (propagation constant)
-- $\lambda$ = wavelength
-- $\omega = 2\pi f$ = angular frequency
-- $f$ = frequency
-
-The velocity of the wave (phase velocity) is:
-
-$$c = \frac{\omega}{k} = f\lambda$$
-
-The intensity of the wave is:
-
-$$I = \frac{1}{2}c\epsilon_0 E_0^2$$
+Einstein's explanation: Photon energy is quantized:
+$$E = hf$$
 
 Where:
-- $c = 3 \times 10^8$ m/s (speed of light)
-- $\epsilon_0 = 8.85 \times 10^{-12}$ F/m (permittivity of free space)
+- $E$ = photon energy (J)
+- $h$ = Planck's constant ($6.63 \times 10^{-34}$ J·s)
+- $f$ = frequency (Hz)
 
-## Section 3: The Wave Equation
-
-Light as an EM wave satisfies the wave equation:
-
-$$\nabla^2u - \frac{1}{c^2}\frac{\partial^2}{\partial t^2}u = 0$$
-
-In one dimension (for the E-field):
-$$\frac{\partial^2}{\partial z^2}E(z,t) - \frac{1}{c^2}\frac{\partial^2}{\partial t^2}E(z,t) = 0$$
-
-Where $\nabla^2$ is the Laplacian operator. This is a linear differential equation, meaning if $f(x,y,z,t)$ and $g(x,y,z,t)$ are solutions, then $h(x,y,z,t) = f(x,y,z,t) + g(x,y,z,t)$ is also a solution (superposition principle).
-
-### Vector Calculus Operators
-
-- **Gradient ($\nabla\phi$)**: Measures the rate and direction of change in a scalar field. Maps scalar → vector.
-- **Divergence ($\nabla \cdot \vec{A}$)**: Measures the magnitude of a source or sink at a point in a vector field. Maps vector → scalar.
-- **Curl ($\nabla \times \vec{A}$)**: Measures the tendency to rotate about a point in a vector field. Maps vector → vector.
-- **Laplacian ($\nabla^2$)**: Divergence of the gradient. For a scalar: $\nabla^2\phi = \frac{\partial^2\phi}{\partial x^2} + \frac{\partial^2\phi}{\partial y^2} + \frac{\partial^2\phi}{\partial z^2}$
-
-## Section 4: Young's Double-Slit Experiment - Light as a Wave
-
-When light passes through two slits S1 and S2, it creates an interference pattern of bright and dark fringes (Young's fringes) on a screen.
-
-Constructive interference (bright fringes):
-$$S_1P - S_2P = n\lambda$$
-
-Destructive interference (dark fringes):
-$$S_1P - S_2P = \left(n + \frac{1}{2}\right)\lambda$$
+The kinetic energy of emitted electrons:
+$$K_{E} = hf - \Phi$$
 
 Where:
-- $n$ = integer (0, 1, 2, 3, ...)
+- $K_E$ = maximum kinetic energy of ejected electron (J)
+- $\Phi$ = work function of the metal (J) - the energy needed to escape the metal
 
-## Section 5: Bragg's Law - X-ray Diffraction
-
-When X-rays strike a crystalline material, they produce diffraction patterns. The condition for constructive interference is:
-
-$$2d\sin\theta = n\lambda \quad n = 1, 2, 3, \ldots$$
-
-Where:
-- $d$ = separation between atomic planes
-- $\theta$ = angle of incidence
-- $\lambda$ = wavelength of X-rays
-
-This is known as **Bragg's law** and is fundamental to crystallography.
-
-## Section 6: Photons - Light as Particles
-
-Light can also behave as a stream of particles called **photons**. Each photon carries a quantum of energy:
-
+## Section 4: Photon Properties
+**Photon energy:**
 $$E_{ph} = hf = \frac{hc}{\lambda}$$
 
-Where:
-- $E_{ph}$ = energy of a photon (J)
-- $h = 6.6 \times 10^{-34}$ J·s (Planck's constant)
-- $f$ = frequency of light (Hz)
-- $c = 3 \times 10^8$ m/s (speed of light)
-
-The momentum of a photon is:
-
+**Photon momentum:**
 $$p = \frac{h}{\lambda}$$
 
-## Section 7: The Photoelectric Effect
-
-When light strikes a metal surface, electrons can be emitted. This is the **photoelectric effect**. Key observations:
-
-1. Electrons are emitted only when light frequency exceeds a threshold frequency $f_0$
-2. The kinetic energy of emitted electrons depends on light frequency, not intensity
-3. Increasing light intensity increases the number of electrons emitted, but not their energy
-
-The maximum kinetic energy of emitted electrons is:
-
-$$KEm = hf - \Phi$$
-
-Where:
-- $KEm$ = maximum kinetic energy of emitted electron (J)
-- $h$ = Planck's constant
-- $f$ = frequency of incident light
-- $\Phi$ = work function of the metal (minimum energy needed to release an electron)
-
-The stopping voltage $V_0$ relates to kinetic energy by:
-
-$$eV_0 = KEm$$
-
-Where:
-- $e = 1.6 \times 10^{-19}$ C (elementary charge)
-
-## Section 8: Wave-Particle Duality
-
-Light exhibits both wave-like and particle-like properties:
-
-- **Wave properties**: Interference, diffraction (explain with wave model)
-- **Particle properties**: Photoelectric effect, Compton scattering (explain with photon model)
-
-Light intensity relates to photon flux density:
-
+**Light intensity (energy flowing per unit area per second):**
 $$I = \Gamma_{ph}hf$$
 
 Where:
-- $\Gamma_{ph} = \frac{\Delta N_{ph}}{A\Delta t}$ = photon flux density (photons per unit area per second)
+- $\Gamma_{ph} = \frac{\Delta N_{ph}}{A \Delta t}$ = photon flux density (photons per area per time)
+- $c$ = speed of light ($3 \times 10^8$ m/s)
+- $\lambda$ = wavelength (m)
 
-The energy and momentum of a photon can also be written as:
+## Section 5: Wave-Particle Duality for Light
+Light exhibits BOTH wave-like AND particle-like properties:
+- **Wave behavior**: Interference, diffraction (explained by wave theory)
+- **Particle behavior**: Photoelectric effect, Compton scattering (explained by photon model)
 
-$$E = \hbar\omega \quad p = \hbar k$$
+This is the **wave-particle duality** - light is neither purely a wave nor purely a particle; it exhibits properties of both depending on the experiment.
 
-## Section 9: Monochromatic Plane Waves, Wavefronts, Rays, and Beams
+## Section 6: Black Body Radiation
+All objects emit and absorb radiation. A black body is a perfect emitter/absorber.
 
-### Monochromatic Plane Wave
-The general solution to the wave equation in one dimension is:
+Classical theory predicted intensity $I_\lambda \propto 1/\lambda^4$, which failed at short wavelengths (the "ultraviolet catastrophe").
 
-$$E(z,t) = E_0\cos(kz - \omega t + \phi_0)$$
+Planck's solution: Energy is emitted/absorbed in discrete quanta:
+$$I_\lambda = \frac{2\pi hc^2}{\lambda^5[\exp(\frac{hc}{\lambda kT}) - 1]}$$
 
-Where:
-- $\phi_0$ = initial phase
-- $k = 2\pi/\lambda$ = wavenumber (spatial angular frequency)
-- $\omega = 2\pi/T$ = angular frequency (temporal)
-
-The wavelength $\lambda$ and temporal period $T$ relate to speed:
-
-$$v = \frac{\lambda}{T} = \frac{\omega}{k} = f\lambda$$
-
-### Wavefronts, Rays, and Beams
-
-- **Wavefront**: The locus (curve or surface) of points with identical wave displacement. In a plane wave, wavefronts are planar surfaces perpendicular to the direction of propagation.
-
-- **Ray**: A line perpendicular to a series of successive wavefronts. It specifies the energy flow direction in the wave.
-
-- **Beam**: A bundle of rays traveling together.
-
-### Light as EM Waves with Specific Wavelength Range
-
-Light = electromagnetic waves with wavelength range approximately 400-700 nm (visible spectrum)
-Photons = indivisible units of light (particles of light)
-
-$$E = \hbar\omega$$
+Stefan-Boltzmann law (total radiated power):
+$$P_S = \sigma_S T^4$$
 
 Where:
-- $\hbar = h/2\pi = 1.05 \times 10^{-34}$ J·s (reduced Planck's constant)
-- $\omega = 2\pi f$ (angular frequency)
+- $\sigma_S = 5.670 \times 10^{-8}$ W/m²·K⁴ (Stefan constant)
 
-Where:
-- $\hbar = h/2\pi = 1.05 \times 10^{-34}$ J·s (reduced Planck's constant)
-- $k = 2\pi/\lambda$ = wave number
+Wien's displacement law (peak wavelength):
+$$\lambda_{max}T \approx 2.89 \times 10^{-3} \text{ m·K}$$
+
+## Section 7: The Electron as a Wave
+Can electrons exhibit wave-like properties? YES.
+
+**de Broglie's hypothesis**: All particles have wave-like properties:
+$$\lambda = \frac{h}{p} \quad \text{or} \quad p = \frac{h}{\lambda}$$
+
+Experimental confirmation: Electron beams show diffraction and interference patterns (like X-rays).
+
+## Key Equations
+$$E = hf \quad \text{(photon energy)}$$
+$$p = \frac{h}{\lambda} \quad \text{(photon momentum)}$$
+$$K_E = hf - \Phi \quad \text{(photoelectric effect)}$$
+$$I = \Gamma_{ph}hf \quad \text{(light intensity)}$$
+$$\lambda = \frac{h}{p} \quad \text{(de Broglie wavelength)}$$
+$$P_S = \sigma_S T^4 \quad \text{(Stefan-Boltzmann)}$$
+$$\lambda_{max}T \approx 2.89 \times 10^{-3} \text{ m·K} \quad \text{(Wien's law)}$$
+
+## Key Definitions
+- **Photon**: Indivisible unit/particle of light
+- **Work function (Φ)**: Minimum energy needed to eject an electron from a metal
+- **Wave-particle duality**: Light and matter exhibit both wave and particle properties
+- **Black body**: Perfect emitter/absorber of radiation
+- **de Broglie wavelength**: Wavelength associated with a particle

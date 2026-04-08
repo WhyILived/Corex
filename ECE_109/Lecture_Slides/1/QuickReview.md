@@ -1,32 +1,62 @@
-# QuickReview: Introduction to Quantum Mechanics
+# QuickReview: Concise Summary
+> Lecture 1 - Introduction to Quantum Mechanics
 
-## Key Concepts
+## Core Concepts
 
-1. **Brief History of Light**:
-   - Newton: Light as particles (corpuscles)
-   - Maxwell: Light as electromagnetic waves (explained interference, diffraction)
-   - Planck/Einstein: Light as photons with wave-particle duality
-   - Herschel discovered IR (1800), Ritter discovered UV (1801), Fraunhofer developed spectrometer
+### Wave-Particle Duality
+Light and matter exhibit both wave-like and particle-like properties depending on the experiment.
 
-2. **Light as a Wave**: Light is an electromagnetic wave satisfying the wave equation $\nabla^2u - \frac{1}{c^2}\frac{\partial^2 u}{\partial t^2} = 0$. Electric field: $E(z,t) = E_0\cos(kz - \omega t + \phi_0)$. Exhibits interference and diffraction.
+- **Light as wave**: Interference, diffraction → Young's slits
+- **Light as particle**: Photoelectric effect, Compton scattering
+- **Electron as wave**: Electron diffraction, interference patterns
 
-3. **Light as Particles (Photons)**: Light consists of discrete energy packets (photons) with energy $E = hf = hc/\lambda$ and momentum $p = h/\lambda$.
+### Key Quantities
+- **Photon energy**: $E = hf = hc/\lambda$
+- **Photon momentum**: $p = h/\lambda$
+- **de Broglie wavelength**: $\lambda = h/p$ (for any particle)
 
-4. **Photoelectric Effect**: Electrons are emitted from metals when light exceeds threshold frequency. Kinetic energy: $KE = hf - \Phi$. Demonstrates that light energy is quantized.
+### Photoelectric Effect
+- $K_E = hf - \Phi$ (electron kinetic energy)
+- $\Phi$ = work function (metal-specific)
+- Threshold frequency: $hf_0 = \Phi$
 
-5. **Wave-Particle Duality**: Both light and matter exhibit dual wave-particle nature depending on the experiment. Key equations: $E = hf$, $p = h/\lambda$.
+### Wave Equation
+$$\frac{\partial^2 E}{\partial z^2} - \frac{1}{c^2}\frac{\partial^2 E}{\partial t^2} = 0$$
 
-6. **de Broglie Hypothesis**: Particles have wavelength $\lambda = h/p$, confirmed by electron diffraction experiments.
+Solution: $E = E_0 \cos(kz - \omega t)$
 
-7. **Stern-Gerlach Experiment**: Demonstrates quantization of angular momentum (spin) - electrons can only have spin up or down, not continuous values.
+### Vector Calculus
+- **Gradient** ($\nabla\phi$): scalar → vector
+- **Divergence** ($\nabla \cdot \vec{A}$): vector → scalar  
+- **Curl** ($\nabla \times \vec{A}$): vector → vector
+- **Laplacian** ($\nabla^2$): second derivatives
 
-## What to Remember
+### Uncertainty Principle
+$$\Delta x \cdot \Delta p_x \gtrsim \hbar \quad \text{and} \quad \Delta E \cdot \Delta t \gtrsim \hbar$$
 
-- Photon energy depends on frequency (color), not intensity
-- The wave equation describes how EM waves propagate
-- Vector calculus operators (gradient, divergence, curl, Laplacian) are used in wave equations
-- Wavefronts, rays, and beams describe different aspects of wave propagation
-- Electron wavelength decreases with higher accelerating voltage: $\lambda = h/\sqrt{2m_e eV}$
-- Spin measurement affects subsequent measurements of other spin components
-- Bragg's law $2d\sin\theta = n\lambda$ applies to all wave-like phenomena including electron diffraction
-- Light intensity $I$ relates to photon flux density $\Gamma_{ph}$ by $I = \Gamma_{ph}hf$
+Fundamental limit - not measurement error!
+
+### Hydrogen Atom Quantum Numbers
+- $n = 1, 2, 3, ...$ (energy)
+- $\ell = 0, 1, 2, ..., n-1$ (orbital angular momentum)
+- $m_\ell = -\ell, ..., +\ell$ (angular momentum z-component)
+- $m_s = \pm 1/2$ (electron spin)
+
+Energy: $E_n = -13.6/n^2$ eV
+
+### Lasers
+Three processes: **Absorption**, **Spontaneous emission**, **Stimulated emission**
+
+Laser = Light Amplification by Stimulated Emission of Radiation
+
+Key requirements:
+1. Population inversion
+2. Optical cavity (mirrors)
+3. Metastable state
+
+## Memorize
+- $h = 6.63 \times 10^{-34}$ J·s
+- $\hbar = 1.055 \times 10^{-34}$ J·s
+- $c = 3 \times 10^8$ m/s
+- $E_n = -13.6/n^2$ eV
+- $a_0 = 0.0529$ nm (Bohr radius)

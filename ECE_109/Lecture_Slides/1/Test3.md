@@ -1,33 +1,52 @@
-# Test3: Knowledge Check - Stern-Gerlach Experiment
+# Test3: Heisenberg's Uncertainty Principle
 > Tests: Learn3 material
 > Time: ~15 minutes
 
 ## Conceptual Questions
 
-1. Describe the setup of the Stern-Gerlach experiment and what it demonstrates about atomic magnetic moments.
+1. Is the uncertainty principle a consequence of measurement limitations? Explain.
 
-2. Why did the classical physics predict a continuous spread of the silver atom beam, while the experiment showed two distinct spots?
+2. If an electron is confined to a region of space of width $a$, what can you say about the uncertainty in its momentum?
 
-3. What is meant by the "quantization" of angular momentum as demonstrated by this experiment?
+3. Explain why the uncertainty principle matters for atomic-scale phenomena but not for macroscopic objects.
 
-4. Explain what happens when you measure the spin of electrons along different axes sequentially. Why does the z-measurement give a 50-50 split after an x-measurement?
+4. State the two uncertainty principles covered in this lecture and explain the physical meaning of each.
 
 ## Calculation Problems
 
-1. The Hamiltonian for a magnetic moment in a magnetic field is $\hat{H} = -\vec{\mu} \cdot \vec{B}$. If we have a spin-1/2 particle with magnetic moment $\mu$ in a magnetic field B = 0.5 T, calculate the energy splitting between the two spin states.
+1. **Electron in an Atom**
+   - An electron is confined to a region of space approximately 0.1 nm wide (atomic scale).
+   - (a) Calculate the minimum uncertainty in the electron's momentum.
+   - (b) Estimate the minimum kinetic energy this corresponds to.
+   - Given: $\hbar = 1.055 \times 10^{-34}$ J·s, $m_e = 9.11 \times 10^{-31}$ kg
 
-2. Consider a beam of silver atoms passing through a Stern-Gerlach apparatus oriented to measure the z-component of spin. If 1000 atoms enter the apparatus, approximately how many would you expect to find in the z+ output channel?
+2. **Macroscopic Object**
+   - A dust particle of mass $10^{-12}$ kg is confined to a region of size 1 μm.
+   - Calculate the minimum uncertainty in its velocity and comment on whether this is measurable.
+
+3. **Excited State Lifetime**
+   - An excited atomic state has a lifetime of $10^{-8}$ s.
+   - What is the minimum uncertainty in its energy?
+   - Express your answer in electron-volts.
+
+4. **Conceptual Application**
+   - If you try to localize a photon to within one wavelength ($\Delta x \approx \lambda$), what is the minimum uncertainty in its momentum?
+   - Express your answer in terms of $p = h/\lambda$.
 
 ## Answers
 
-1. The quantization of angular momentum means that the magnetic moment can only point in specific discrete directions, not in any arbitrary direction. This is fundamentally different from classical physics where a magnetic moment could have any orientation.
+1. **Electron in an Atom:**
+   - (a) $\Delta p_x \gtrsim \frac{\hbar}{\Delta x} = \frac{1.055 \times 10^{-34}}{0.1 \times 10^{-9}} = 1.055 \times 10^{-24}$ kg·m/s
+   - (b) $K_{min} \approx \frac{(\Delta p_x)^2}{2m_e} = \frac{(1.055 \times 10^{-24})^2}{2(9.11 \times 10^{-31})} = 6.1 \times 10^{-19}$ J $\approx 3.8$ eV
 
-2. Classical physics would predict the magnetic moment vector could point in any direction relative to the field gradient, leading to a continuous spread on the screen. But quantum mechanically, only two discrete orientations (spin up and spin down) are allowed, resulting in two distinct spots.
+2. **Macroscopic Object:**
+   - $\Delta v_x \gtrsim \frac{\hbar}{m \Delta x} = \frac{1.055 \times 10^{-34}}{(10^{-12})(10^{-6})} = 10^{-16}$ m/s
+   - This is far below measurable limits - negligible for all practical purposes
 
-3. The z-measurement collapses the wavefunction into an eigenstate of the z-operator. When you then measure x, you collapse into an eigenstate of the x-operator, which is a superposition of z+ and z- states. A subsequent z-measurement therefore gives a 50-50 probability for each state.
+3. **Excited State Lifetime:**
+   - $\Delta E \gtrsim \frac{\hbar}{\Delta t} = \frac{1.055 \times 10^{-34}}{10^{-8}} = 1.055 \times 10^{-26}$ J
+   - $\Delta E \approx \frac{1.055 \times 10^{-26}}{1.6 \times 10^{-19}} = 6.6 \times 10^{-8}$ eV
 
-**Calculation Answers**:
-
-1. For spin-1/2, the magnetic moment is $\mu = g \frac{e}{2m} S$ where $g ≈ 2$ for electron spin. The energy splitting is $\Delta E = \mu B$ for spin aligned vs anti-aligned. With $\mu_B = 9.27 \times 10^{-24}$ J/T for the Bohr magneton, the splitting depends on the specific gyromagnetic ratio.
-
-2. If the input beam is unpolarized (random spin orientations), the z-measurement would give approximately 500 atoms in z+ and 500 in z-, assuming ideal apparatus efficiency.
+4. **Photon Localization:**
+   - $\Delta p_x \gtrsim \frac{\hbar}{2\lambda} = \frac{h}{4\pi\lambda} = \frac{p}{4\pi}$
+   - So the momentum uncertainty is approximately $p/(4\pi)$

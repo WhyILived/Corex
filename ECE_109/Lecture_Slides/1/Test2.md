@@ -1,46 +1,57 @@
-# Test2: Knowledge Check - Electron as a Wave
+# Test2: Wave Equation & Electromagnetic Waves
 > Tests: Learn2 material
 > Time: ~15 minutes
 
 ## Conceptual Questions
 
-1. State de Broglie's hypothesis about the relationship between a particle's momentum and its wavelength.
+1. State whether each operation is gradient, divergence, or curl, and what it maps to:
+   (a) scalar → vector
+   (b) vector → scalar
+   (c) vector → vector
 
-2. Why don't we observe wave-like behavior (diffraction) for everyday objects like a golf ball?
+2. What is the mathematical property of the wave equation that allows two waves to pass through each other without disturbing each other?
 
-3. In electron diffraction experiments, what happens to the electron wavelength when the accelerating voltage is increased?
+3. For a plane wave propagating in the z-direction, describe the relationship between the electric field, magnetic field, and direction of propagation.
 
-4. How does the electron diffraction pattern change when a magnet is brought near the screen? Why?
+4. Define: wavefront, ray, wavenumber.
 
 ## Calculation Problems
 
-1. Calculate the de Broglie wavelength of:
-   a) An electron moving at 1 × 10⁶ m/s
-   b) A 100 g baseball moving at 40 m/s
+1. **Wave Parameters**
+   - A light wave in vacuum has frequency $f = 5 \times 10^{14}$ Hz.
+   - Find: (a) angular frequency $\omega$, (b) wavelength $\lambda$, (c) wavenumber $k$
 
-2. Through what voltage must an electron be accelerated to have a wavelength of 0.1 nm?
+2. **Wave Equation Verification**
+   - Show that $E(z,t) = E_0 \cos(kz - \omega t)$ satisfies the 1D wave equation
+   - Find the second derivatives $\frac{\partial^2 E}{\partial z^2}$ and $\frac{\partial^2 E}{\partial t^2}$
 
-3. Electrons are accelerated by 10 kV and strike an aluminum foil. The first diffraction ring is observed at a diameter D₁ = 19.6 mm on a screen 18.3 cm away. If the lattice parameter of Al is 0.4049 nm, calculate the de Broglie wavelength and verify it satisfies Bragg's law for the (111) planes.
+3. **Vector Calculus**
+   - Given $\phi(x,y,z) = 3x^2y + 2yz^2$, find $\nabla \phi$
+   - Given $\vec{A} = x^2\hat{x} + 2yz\hat{y} + z^2\hat{z}$, find $\nabla \cdot \vec{A}$
 
-4. Compare the wavelength of a proton (mass = 1.67 × 10⁻²⁷ kg) traveling at 2200 m/s with the wavelength of an electron (mass = 9.1 × 10⁻³¹ kg) traveling at the same speed.
+4. **Phase Calculation**
+   - Light of wavelength 600 nm travels through vacuum.
+   - (a) What is the phase of the wave at position $z = 1.5\,\mu m$ and time $t = 10^{-15}$ s?
+   - (b) At this point, is the wave at a maximum, minimum, or in between?
 
 ## Answers
 
-1. 
-   a) $\lambda = h/(mv) = 6.63 \times 10^{-34}/(9.1 \times 10^{-31} \times 10^6) = 0.728$ nm
-   b) $\lambda = 6.63 \times 10^{-34}/(0.1 \times 40) = 1.66 \times 10^{-34}$ m
+1. **Wave Parameters:**
+   - $\omega = 2\pi f = 2\pi(5 \times 10^{14}) = 3.14 \times 10^{15}$ rad/s
+   - $\lambda = c/f = (3 \times 10^8)/(5 \times 10^{14}) = 600$ nm
+   - $k = 2\pi/\lambda = 2\pi/(600 \times 10^{-9}) = 1.05 \times 10^7$ m$^{-1}$
 
-2. From $\lambda = h/\sqrt{2m_e eV}$, solving for V:
-   $V = h^2/(2m_e e\lambda^2) = (6.63 \times 10^{-34})^2/(2 \times 9.1 \times 10^{-31} \times 1.6 \times 10^{-19} \times (10^{-10})^2) = 150$ V
+2. **Wave Equation Verification:**
+   - $\frac{\partial^2 E}{\partial z^2} = -k^2 E_0 \cos(kz - \omega t)$
+   - $\frac{\partial^2 E}{\partial t^2} = -\omega^2 E_0 \cos(kz - \omega t)$
+   - Substituting: $-k^2 E + \frac{1}{c^2}(-\omega^2 E) = -E(k^2 - \omega^2/c^2) = 0$ when $\omega = ck$
 
-3. 
-   - $2\theta_1 = \arctan(D_1/(2R)) = \arctan(19.6/(2 \times 183)) = 3.065°$, $\theta_1 = 1.53°$
-   - For (111) planes in FCC: $d = a/\sqrt{3} = 0.4049/1.732 = 0.234$ nm
-   - $\lambda = 2d\sin\theta_1 = 2(0.234 \times 10^{-9})\sin(1.53°) = 0.0367$ nm
-   - De Broglie wavelength from voltage: $\lambda = h/\sqrt{2m_e eV} = 6.63 \times 10^{-34}/\sqrt{2 \times 9.1 \times 10^{-31} \times 1.6 \times 10^{-19} \times 10000} = 0.0123$ nm
-   - (Note: this is for 10 keV electrons)
+3. **Vector Calculus:**
+   - $\nabla \phi = (6xy)\hat{x} + (3x^2 + 2z^2)\hat{y} + (4yz)\hat{z}$
+   - $\nabla \cdot \vec{A} = 2x + 2z$
 
-4. 
-   - Proton: $\lambda = h/(mv) = 6.63 \times 10^{-34}/(1.67 \times 10^{-27} \times 2200) = 0.18$ nm
-   - Electron: $\lambda = h/(mv) = 6.63 \times 10^{-34}/(9.1 \times 10^{-31} \times 2200) = 0.33$ nm
-   - The electron has a larger wavelength due to its much smaller mass
+4. **Phase:**
+   - $k = 2\pi/\lambda = 2\pi/(600 \times 10^{-9}) = 1.05 \times 10^7$ m$^{-1}$
+   - $\omega = 2\pi c/\lambda = 2\pi(3 \times 10^8)/(600 \times 10^{-9}) = 3.14 \times 10^{15}$ rad/s
+   - Phase $\phi = kz - \omega t = (1.05 \times 10^7)(1.5 \times 10^{-6}) - (3.14 \times 10^{15})(10^{-15}) = 15.75 - 3.14 = 12.6$ rad $\approx 2\pi(2)$
+   - Since phase $\approx 4\pi$ (multiple of 2$\pi$), this is a maximum

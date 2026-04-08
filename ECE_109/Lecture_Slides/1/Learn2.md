@@ -1,76 +1,95 @@
-# Learn2: The Electron as a Wave and de Broglie Relationship
+# Learn2: Wave Equation & Electromagnetic Waves
 > Estimated time: ~30 minutes
 
-## Section 1: Wave-Particle Duality for Matter
+## Section 1: What is a Wave?
+A wave is a periodically repeating disturbance in space and time that propagates through a medium.
 
-Just as light exhibits both wave and particle properties, electrons (and other matter) can also exhibit wave-like properties. When electron beams are used in Young's double-slit experiment, they produce interference fringes just like light.
+Light: oscillation of the electric and magnetic field amplitude.
 
-When an energetic electron beam hits a polycrystalline aluminum sheet, it produces diffraction rings similar to X-ray diffraction patterns. The electrons obey the **Bragg diffraction condition**:
+## Section 2: The Wave Equation
+The general wave equation in three dimensions:
+$$\nabla^2 u - \frac{1}{c^2}\frac{\partial^2 u}{\partial t^2} = 0$$
 
-$$2d\sin\theta = n\lambda$$
-
-Where:
-- $d$ = separation between atomic planes
-- $\theta$ = diffraction angle
-- $\lambda$ = wavelength of electron wave
-
-## Section 2: The de Broglie Relationship
-
-French physicist Louis de Broglie hypothesized that particles of momentum $p$ have an associated wavelength:
-
-$$\lambda = \frac{h}{p}$$
-
-Or equivalently:
-
-$$p = \frac{h}{\lambda}$$
+For the electric field in one dimension:
+$$\frac{\partial^2 E}{\partial z^2} - \frac{1}{c^2}\frac{\partial^2 E}{\partial t^2} = 0$$
 
 Where:
-- $h = 6.63 \times 10^{-34}$ J·s (Planck's constant)
-- $p$ = momentum of the particle (kg·m/s)
+- $\nabla^2$ is the Laplacian operator
+- $c$ is the speed of light ($3 \times 10^8$ m/s in vacuum)
+- $u$ represents the wave amplitude (can be a scalar or vector)
 
-For a particle with mass $m$ and velocity $v$:
-$$p = mv$$
-$$\lambda = \frac{h}{mv}$$
+**Important property**: The wave equation is linear - if f and g are solutions, then h = f + g is also a solution (principle of superposition).
 
-## Section 3: Electron Wavelength and Accelerating Voltage
-
-For an electron accelerated by voltage $V$, its kinetic energy is:
-$$KE = eV = \frac{p^2}{2m_e}$$
+## Section 3: General Solution to the Wave Equation
+The electric field wave solution:
+$$E(z,t) = E_0 \cos(kz - \omega t + \phi_0)$$
 
 Where:
-- $e = 1.6 \times 10^{-19}$ C (elementary charge)
-- $m_e = 9.1 \times 10^{-31}$ kg (electron mass)
-- $V$ = accelerating voltage (volts)
+- $E_0$ = amplitude
+- $k$ = wavenumber (spatial angular frequency) = $2\pi/\lambda$
+- $\omega$ = angular frequency = $2\pi f$
+- $\phi_0$ = initial phase
+- $\lambda$ = wavelength
+- $f$ = frequency
 
-Solving for momentum:
-$$p = \sqrt{2m_e eV}$$
+## Section 4: Vector Calculus Review
+### Gradient ($\nabla \phi$)
+Measures rate and direction of change in a scalar field:
+$$\nabla \phi = \frac{\partial \phi}{\partial x}\hat{x} + \frac{\partial \phi}{\partial y}\hat{y} + \frac{\partial \phi}{\partial z}\hat{z}$$
 
-The de Broglie wavelength:
-$$\lambda = \frac{h}{\sqrt{2m_e eV}}$$
+Maps: scalar → vector
 
-Example calculations:
-- 50 g golf ball at 20 m/s: $\lambda = 6.63 \times 10^{-34}$ m (too small to observe)
-- Proton at 2200 m/s: $\lambda ≈ 0.18$ nm (comparable to interatomic distances)
-- Electron accelerated by 100 V: $\lambda = 0.123$ nm (visible diffraction effects)
+### Divergence ($\nabla \cdot \vec{A}$)
+Measures magnitude of source or sink at a point in a vector field:
+$$\nabla \cdot \vec{A} = \frac{\partial A_x}{\partial x} + \frac{\partial A_y}{\partial y} + \frac{\partial A_z}{\partial z}$$
 
-## Section 4: Electron Diffraction Confirmation
+Maps: vector → scalar
 
-Electron diffraction experiments confirm de Broglie's hypothesis. In experiments with aluminum foil:
-- Electrons accelerated by anode voltage V produce diffraction rings
-- The Bragg condition is satisfied: $2d\sin\theta = n\lambda$
-- Plotting $\sin\theta$ vs $1/\sqrt{V}$ yields a straight line through the origin
-- This confirms $\lambda \propto 1/\sqrt{V}$ as predicted by de Broglie's equation
+### Curl ($\nabla \times \vec{A}$)
+Measures tendency to rotate about a point in a vector field:
+$$\nabla \times \vec{A} = \left(\frac{\partial A_z}{\partial y} - \frac{\partial A_y}{\partial z}\right)\hat{x} + \left(\frac{\partial A_x}{\partial z} - \frac{\partial A_z}{\partial x}\right)\hat{y} + \left(\frac{\partial A_y}{\partial x} - \frac{\partial A_x}{\partial y}\right)\hat{z}$$
 
-For FCC aluminum crystal with lattice parameter $a = 0.4049$ nm:
-$$\sin\theta_1 = \frac{\sqrt{3}h}{2a(2m_e e)^{1/2}}\frac{1}{\sqrt{V}}$$
+Maps: vector → vector
 
-Experimental values give $h = 6.67 \times 10^{-34}$ J·s, within 0.7% of the accepted value.
+### Laplacian
+**Scalar Laplacian**: $\nabla^2 \phi = \frac{\partial^2 \phi}{\partial x^2} + \frac{\partial^2 \phi}{\partial y^2} + \frac{\partial^2 \phi}{\partial z^2}$
+Maps: scalar → scalar
+
+**Vector Laplacian**: $\nabla^2 \vec{A} = \nabla^2 A_x \hat{x} + \nabla^2 A_y \hat{y} + \nabla^2 A_z \hat{z}$
+Maps: vector → vector
+
+## Section 5: Monochromatic Plane Waves
+A monochromatic plane wave is a solution to the wave equation with a single frequency.
+
+**Temporal period (T)**: Time for one complete oscillation
+$$\omega = \frac{2\pi}{T}$$
+
+**Spatial period (wavelength $\lambda$)**: Distance for one complete oscillation
+$$k = \frac{2\pi}{\lambda}$$
+
+**Relationship between $\omega$ and $k$:
+$$\omega = ck \quad \text{or} \quad c = f\lambda = \frac{\omega}{k}$$
+
+**General form in 3D:**
+$$E(\vec{r}, t) = E_0 \cos(\vec{k} \cdot \vec{r} - \omega t + \phi_0)$$
+
+Where $\vec{k} = k_x\hat{x} + k_y\hat{y} + k_z\hat{z}$ is the wavevector with magnitude $|\vec{k}| = \frac{2\pi}{\lambda}$
+
+## Section 6: Light as EM Waves
+Light is an electromagnetic wave with:
+- Electric field $\vec{E}$ and magnetic field $\vec{B}$ perpendicular to each other and to direction of propagation
+- Speed $c = \frac{1}{\sqrt{\varepsilon_0 \mu_0}} = 3 \times 10^8$ m/s in vacuum
 
 ## Key Equations
+$$\nabla^2 u - \frac{1}{c^2}\frac{\partial^2 u}{\partial t^2} = 0 \quad \text{(wave equation)}$$
+$$E(z,t) = E_0 \cos(kz - \omega t + \phi_0) \quad \text{(traveling wave)}$$
+$$\omega = 2\pi f \quad \text{(angular frequency)}$$
+$$k = \frac{2\pi}{\lambda} \quad \text{(wavenumber)}$$
+$$c = f\lambda = \frac{\omega}{k} \quad \text{(phase velocity)}$$
 
-| Equation | Description |
-|----------|-------------|
-| $\lambda = h/p$ | de Broglie wavelength |
-| $p = \sqrt{2m_e eV}$ | Electron momentum from accelerating voltage |
-| $\lambda = h/\sqrt{2m_e eV}$ | Electron wavelength from accelerating voltage |
-| $2d\sin\theta = n\lambda$ | Bragg's law (diffraction condition) |
+## Key Definitions
+- **Wave**: Periodically repeating disturbance in space and time
+- **Wavefront**: Locus of points with identical wave displacement
+- **Ray**: Line perpendicular to successive wavefronts; specifies energy flow direction
+- **Plane wave**: Wave with constant phase over planes perpendicular to propagation
+- **Monochromatic**: Single frequency/wavelength

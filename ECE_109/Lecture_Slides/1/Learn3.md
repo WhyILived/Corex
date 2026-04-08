@@ -1,63 +1,67 @@
-# Learn3: Early Quantum Mechanics - Stern-Gerlach Experiment
+# Learn3: Heisenberg's Uncertainty Principle
 > Estimated time: ~30 minutes
 
-## Section 1: The Stern-Gerlach Experiment
+## Section 1: Introduction
+The Heisenberg Uncertainty Principle is a fundamental limit to what we can simultaneously know about certain pairs of physical quantities.
 
-The Stern-Gerlach experiment (1922) provided direct evidence for the quantization of angular momentum and the concept of **electron spin**.
+Unlike measurement errors, this is a **theoretical limit** inherent to quantum mechanics - not about instrument precision.
 
-### Experimental Setup:
-- Silver atoms travel from a furnace through an inhomogeneous magnetic field
-- The beam splits into distinct paths depending on the orientation of the atoms' magnetic moments
+## Section 2: Position-Momentum Uncertainty
+For a particle, we cannot simultaneously know exact values of position $x$ and momentum $p_x$ along the same direction:
 
-### Key Observations:
-1. The beam splits into two distinct components (z+ and z-)
-2. This demonstrates that the magnetic moment of silver atoms can only have specific orientations
-3. The behavior cannot be explained by classical physics (which would predict a continuous spread)
-
-## Section 2: Magnetic Moment and Spin
-
-The interaction between the magnetic field and the atomic magnetic moment is described by:
-
-$$\hat{H} = -\vec{\mu} \cdot \vec{B}$$
+$$\Delta x \cdot \Delta p_x \gtrsim \frac{\hbar}{2}$$
 
 Where:
-- $\hat{H}$ = Hamiltonian (energy operator)
-- $\vec{\mu}$ = magnetic moment vector
-- $\vec{B}$ = magnetic field vector
+- $\Delta x$ = uncertainty in position
+- $\Delta p_x$ = uncertainty in momentum
+- $\hbar = \frac{h}{2\pi} = 1.055 \times 10^{-34}$ J·s
 
-### Key Findings:
-- When measuring along the z-axis, only two discrete values are observed
-- This corresponds to spin "up" (z+) and spin "down" (z-)
-- The spin is a fundamental quantum property of electrons, with value $s = 1/2$
+More precisely: $\Delta x \Delta p_x \geq \frac{\hbar}{2}$ (some texts use $\hbar$ or even $h$)
 
-## Section 3: Sequential Stern-Gerlach Measurements
+## Section 3: Understanding the Principle
+**For a free electron** (wave with single wavelength $\lambda$):
+- The wave extends infinitely in space → $\Delta x = \infty$
+- Momentum is exactly defined: $p = h/\lambda$ → $\Delta p_x = 0$
+- Product: $\Delta x \cdot \Delta p_x = \infty \cdot 0 > \frac{\hbar}{2}$ ✓
 
-When multiple Stern-Gerlach apparatuses are placed in sequence:
+**For electron in a box** (confined to region width $a$):
+- $\Delta x \approx a$ (uncertainty in position)
+- Momentum can be in two directions → $\Delta p_x \sim h/a$
+- Product: $\Delta x \cdot \Delta p_x \sim a \cdot (h/a) = h \geq \frac{\hbar}{2}$ ✓
 
-### Experiment 1: z-basis measurement
-- First S-G apparatus measures z-component → splits into z+ and z-
-- Only z+ output is selected
+## Section 4: Energy-Time Uncertainty
+There is also an uncertainty relationship between energy and time:
 
-### Experiment 2: Same basis measurement
-- Second identical S-G apparatus → all atoms exit through z+ channel
-- This is because all atoms are now in the same spin state
+$$\Delta E \cdot \Delta t \gtrsim \frac{\hbar}{2}$$
 
-### Experiment 3: Different basis measurement
-- If the second apparatus measures x-axis instead of z-axis
-- The z+ beam splits into x+ and x- components
-- This shows that the spin state contains information about both z and x measurements
+Where:
+- $\Delta E$ = uncertainty in energy
+- $\Delta t$ = time during which energy is measured
 
-### Experiment 4: Back to original basis
-- A third apparatus measures z again
-- The beam splits into z+ and z- (50-50 split)
-- The x measurement has "reset" the z information
+Physical meaning: A quantum state that exists for only a short time $\Delta t$ has an uncertainty $\Delta E$ in its energy.
 
-## Key Insights
+## Section 5: Consequences
+1. **Particles cannot be localized to arbitrarily small regions** without increasing their momentum uncertainty
+2. **The ground state of a confined particle** has non-zero momentum due to confinement
+3. **Natural linewidth broadening**: Excited states have finite lifetimes, leading to energy uncertainty
 
-1. **Quantization of angular momentum**: The Stern-Gerlach experiment demonstrates that angular momentum (and spin) is quantized, not continuous.
+## Section 6: Applications
+**Atomic scale**: Electron confined to ~0.1 nm (typical atom size):
+$$\Delta p_x \approx \frac{\hbar}{\Delta x} = \frac{1.055 \times 10^{-34}}{10^{-10}} = 1.055 \times 10^{-24} \text{ kg·m/s}$$
 
-2. **Spin as a quantum property**: Electrons have an intrinsic spin of 1/2, which gives them magnetic moment properties.
+This gives kinetic energy of several eV - explaining why electrons in atoms have significant energy!
 
-3. **Measurement affects state**: When you measure spin along one axis, you disrupt the information about other axes.
+**Macroscopic scale**: 100 g apple in 1 m crate:
+$$\Delta v_x \approx \frac{\hbar}{m \Delta x} = \frac{1.055 \times 10^{-34}}{(0.1)(1)} = 1.055 \times 10^{-33} \text{ m/s}$$
 
-4. **No definite spin direction**: Before measurement, the spin state is a superposition; the measurement causes the wavefunction to collapse.
+Negligible for everyday objects - quantum effects only matter at small scales.
+
+## Key Equations
+$$\Delta x \cdot \Delta p_x \gtrsim \frac{\hbar}{2} \quad \text{(position-momentum)}$$
+$$\Delta E \cdot \Delta t \gtrsim \frac{\hbar}{2} \quad \text{(energy-time)}$$
+
+## Key Definitions
+- **Uncertainty principle**: Fundamental limit on simultaneous knowledge of certain paired observables
+- **$\Delta x$**: Spread in position measurements
+- **$\Delta p_x$**: Spread in momentum measurements  
+- **Ground state**: Lowest energy state of a confined particle
