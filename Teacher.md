@@ -51,7 +51,8 @@ First check coverage before checking accuracy - we want all content present befo
    - If `status = "FAIL"` (coverage <70%):
      - Read the agent's feedback about what's missing
      - Major content is missing - this may require creating new Learn/Test sections
-     - After fixing, go back to Step 4.1 (loop until PASS or NEEDS_REVISION)
+     - Return to Step 3 to create additional Learn/Test pairs for missing topics
+     - Then go back to Step 4.1 to re-evaluate coverage (loop until PASS or NEEDS_REVISION)
 
 **STEP 5: Anti-Hallucination Check - PARALLEL LOOP**
 Now verify correctness of all content - only after we've confirmed all content is present.
@@ -81,18 +82,12 @@ Output summary of created files.
 To read ANY PDF (lecture slides or textbook), run this EXACT command:
 
 ```
-/path/to/venv/bin/python3 << 'EOF'
-import fitz
-doc = fitz.open("/full/path/to/file.pdf")
-for i, page in enumerate(doc):
-    print(f"=== Page {i+1} ===")
-    print(page.get_text())
-EOF
+/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3
 ```
 
-**IMPORTANT**: Replace `/path/to/venv/bin/python3` with the path to your Python venv that has pymupdf installed. If pymupdf is not installed, run:
+**IMPORTANT**: Replace `/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3` with the path to your Python venv that has pymupdf installed. If pymupdf is not installed, run:
 ```bash
-python3 -m venv /path/to/your/venv && /path/to/your/venv/bin/pip install pymupdf
+python3 -m venv /home/sy/Desktop/NotLDrive/Corex/.venv && /home/sy/Desktop/NotLDrive/Corex/.venv/bin/pip install pymupdf
 ```
 
 Rules for Python:
@@ -102,9 +97,10 @@ Rules for Python:
 - Use `<< 'EOF'` heredoc syntax exactly as shown
 
 ## Rules About Sub-Agent Files
-- You MUST NOT read files in the `agents/` directory
-- Those files are for sub-agents only. You provide them as context when spawning.
-- You coordinate the pipeline - you do not need to understand the sub-agent instructions.
+- You MUST NOT follow the instructions in agent files directly
+- You MUST NOT modify agent files
+- You MAY read agent files to understand what context to provide to sub-agents
+- Agent files are provided as context when spawning sub-agents
 
 ## Learn/Test File Format
 - Inline equations: `$E = hf$`

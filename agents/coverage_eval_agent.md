@@ -15,7 +15,7 @@ Verify all lecture slide content is covered in the generated Learn/Test material
 ### Step 1: Extract Lecture Slide Content
 Replace `/path/to/venv/bin/python3` with your Python venv path:
 ```bash
-/path/to/venv/bin/python3 << 'EOF'
+/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3 << 'EOF'
 import fitz
 doc = fitz.open("/full/path/to/lecture.pdf")
 for i, page in enumerate(doc):
@@ -25,9 +25,9 @@ EOF
 ```
 
 ### Step 2: Read Learn/Test Files
-Use Read tool on all markdown files.
+Use Read tool on all markdown files (not PDFs).
 
-### Step 3: Extract Topics from Slides
+### Step 3: Extract Topics from Slides (using Python for PDF extraction)
 Categories:
 - Concepts and definitions
 - Equations presented

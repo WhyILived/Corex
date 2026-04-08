@@ -12,7 +12,7 @@ Given a lecture slide, find all relevant textbook PDF sections needed to cover t
 ### Step 1: Extract Lecture Text
 Replace `/path/to/venv/bin/python3` with your Python venv path that has pymupdf installed:
 ```bash
-/path/to/venv/bin/python3 << 'EOF'
+/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3 << 'EOF'
 import fitz
 doc = fitz.open("/full/path/to/lecture.pdf")
 for i, page in enumerate(doc):
@@ -32,7 +32,12 @@ Search in `/path/to/CourseData/Chapters/` for relevant sections:
 - Look for chapter and section directories containing textbook content
 - Find Section_Content.pdf files (main content) and subsection PDFs (granular topics)
 
-### Step 4: Return File Paths
+### Step 4: Handle Sections vs Subsections
+- Use `sections` array for main Section_Content.pdf files that cover broad topics
+- Use `subsections` array for more granular PDFs covering specific sub-topics
+- If a topic has both, include both in respective arrays
+
+### Step 5: Return File Paths
 Return paths to Section_Content.pdf files (required) and subsection PDFs (optional).
 
 ## Output Format

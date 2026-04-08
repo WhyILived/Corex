@@ -11,9 +11,9 @@ Verify Learn.md and Test.md accurately reflect the textbook. Flag any hallucinat
 ## Workflow
 
 ### Step 1: Extract Textbook Content
-For each PDF, replace `/path/to/venv/bin/python3` with your Python venv path:
+For each PDF, replace `/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3` with your Python venv path:
 ```bash
-/path/to/venv/bin/python3 << 'EOF'
+/home/sy/Desktop/NotLDrive/Corex/.venv/bin/python3 << 'EOF'
 import fitz
 doc = fitz.open("/full/path/to/textbook.pdf")
 text = ""
@@ -37,7 +37,7 @@ For each key claim:
 
 ```json
 {
-  "status": "PASS" | "NEEDS_REVISION",
+  "status": "PASS" | "NEEDS_REVISION" | "FAIL",
   "accuracy_score": 0-10,
   "learn_issues": [
     {"claim": "...", "issue": "...", "textbook_quote": "..."}
@@ -48,6 +48,11 @@ For each key claim:
   "summary": "Brief explanation"
 }
 ```
+
+## Pass Criteria
+- **PASS**: All content verified against textbook, no issues found
+- **NEEDS_REVISION**: Minor issues found, content is mostly accurate
+- **FAIL**: Major factual errors detected, content contradicts textbook
 
 ## Rules
 - Always cite exact textbook passages when flagging issues
