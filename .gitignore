@@ -6,13 +6,12 @@ __pycache__/
 
 # PDF files (source content - too large and proprietary)
 *.pdf
-!*.md.pdf  # exception if needed
 
 # Generated learning materials (can be regenerated)
-ECE_109/Lecture_Slides/*/Learn*.md
-ECE_109/Lecture_Slides/*/Test*.md
-ECE_109/Lecture_Slides/*/KeyEquations.md
-ECE_109/Lecture_Slides/*/QuickReview.md
+CourseData/Lecture_Slides/*/Learn*.md
+CourseData/Lecture_Slides/*/Test*.md
+CourseData/Lecture_Slides/*/KeyEquations.md
+CourseData/Lecture_Slides/*/QuickReview.md
 
 # OS
 .DS_Store

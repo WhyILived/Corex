@@ -1,6 +1,6 @@
-# ECE 109 Exam Preparation Pipeline
+# Exam Preparation Pipeline
 
-An automated multi-agent system that generates personalized Learn/Test study materials for the ECE 109 (Principles of Electronic Materials for Engineering) course.
+An automated multi-agent system that generates personalized Learn/Test study materials for any university course.
 
 ## Overview
 
@@ -19,11 +19,11 @@ Corex/
 ├── Split_Agent.md       # Finds relevant textbook sections
 ├── Anti_Hallucinate.md  # Verifies content accuracy
 ├── Final_Eval.md        # Checks coverage completeness
-├── ECE_109/
+├── CourseData/          # Course-specific content (textbooks, slides)
 │   ├── Chapters/        # Split textbook PDFs (by chapter/section)
 │   └── Lecture_Slides/  # Original slides + generated materials
 └── Docs/
-    └── Source_Books/    # Original textbook PDF (not committed)
+    └── Source_Books/    # Original textbook PDFs (not committed)
 ```
 
 ## Pipeline Flow
@@ -44,7 +44,7 @@ Lecture Slides → [Split Agent] → Textbook Sections
 
 1. **Python Environment** (already configured):
    ```bash
-   cd /home/sy/Desktop/NotLDrive/Corex
+   cd /path/to/Corex
    source .venv/bin/activate  # or use .venv/bin/python3
    ```
 
@@ -73,7 +73,7 @@ The pipeline is designed to be run by a parent agent. To process a lecture:
 
 1. Provide the lecture slide PDF path to the Teacher agent
 2. Teacher runs through the pipeline steps automatically
-3. Final Learn/Test materials are output to `ECE_109/Lecture_Slides/[N]/`
+3. Final Learn/Test materials are output to `CourseData/Lecture_Slides/[N]/`
 
 ## Notes
 
