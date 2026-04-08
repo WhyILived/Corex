@@ -95,3 +95,37 @@ Rules for Python:
 - Display equations: `$$K = \frac{1}{2}mv^2$$`
 - Every equation MUST have variable definitions immediately below it
 - Use textbook content as ground truth - never hallucinate facts or make up content
+
+## Learn.md Template
+```markdown
+# Learn[N]: [Topic Name]
+> Estimated time: ~30 minutes
+
+## Section 1: [Concept Name]
+- Key point about the concept
+- Another important point
+
+## Key Equations
+$$E = hf$$
+
+Where:
+- $E$ = photon energy (J)
+- $h$ = Planck's constant ($6.63 \times 10^{-34}$ J·s)
+- $f$ = frequency (Hz)
+```
+
+## Test.md Template
+```markdown
+# Test[N]: Knowledge Check
+> Tests: Learn[N] material
+> Time: ~15 minutes
+
+## Conceptual Questions
+1. [Question about definition or concept]
+
+## Calculation Problems
+1. [Problem using an equation - include expected answer]
+
+## Answers
+1. [Answer with calculation]
+```
