@@ -50,6 +50,7 @@ For each topic, determine:
 ```json
 {
   "status": "PASS" | "NEEDS_REVISION" | "FAIL",
+  "failure_mode": "none" | "missing_content" | "out_of_scope" | "both",
   "coverage_score": "X/Y",
   "fully_covered": ["topic1", "topic2", ...],
   "partially_covered": [
@@ -60,6 +61,12 @@ For each topic, determine:
   "recommendations": ["...", "..."]
 }
 ```
+
+`failure_mode` must be one of:
+- `"missing_content"`: Core lecture topics are not covered
+- `"out_of_scope"`: Learn/Test contains substantial expansion beyond lecture scope
+- `"both"`: Both missing content AND out-of-scope expansion present
+- `"none"`: No failure (status is not FAIL)
 
 ## Pass Criteria
 - **PASS**: ≥90% of core lecture topics covered AND no substantial out-of-scope expansion

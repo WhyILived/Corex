@@ -77,10 +77,11 @@ First check coverage before checking accuracy - we want all content present befo
      - Edit the files to fix the issues
      - Go back to Step 4.1 (loop until PASS)
    - If `status = "FAIL"` (coverage <70%):
-     - Read the agent's feedback about what's missing
-     - Major content is missing - this may require creating new Learn/Test sections
-     - Return to Step 3 to create additional Learn/Test pairs for missing topics
-     - Then go back to Step 4.1 to re-evaluate coverage (loop until PASS or NEEDS_REVISION)
+     - Read the agent's feedback AND `failure_mode` field
+     - If `failure_mode = "missing_content"`: Major lecture content missing - return to Step 3 to create additional Learn/Test pairs for missing core topics
+     - If `failure_mode = "out_of_scope"`: Out-of-scope expansion is the problem - REMOVE or shrink unsupported material from existing Learn/Test files; do NOT create new Learn/Test files
+     - If `failure_mode = "both"`: Fix scope first by removing out-of-scope content, THEN return to Step 3 if genuine lecture gaps remain
+     - After fixing, go back to Step 4.1 to re-evaluate coverage (loop until PASS or NEEDS_REVISION)
 
 **STEP 5: Anti-Hallucination Check - PARALLEL LOOP**
 Now verify correctness of all content - only after we've confirmed all content is present.
