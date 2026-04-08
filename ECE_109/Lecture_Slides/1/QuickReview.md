@@ -1,52 +1,37 @@
-# QuickReview: Lecture 1 - Introduction to Quantum Mechanics and Light
+# QuickReview: Introduction to Quantum Mechanics (Lecture 1)
 
-## Wave Equation
-The wave equation describes wave propagation:
-$$\nabla^2 u - \frac{1}{c^2}\frac{\partial^2}{\partial t^2}u = 0$$
+## Core Concepts
 
-Key property: **Superposition principle** - sum of solutions is also a solution.
+### 1. Light as an Electromagnetic Wave
+- Light propagates as an EM wave with perpendicular electric and magnetic fields
+- Described by the wave equation: $\nabla^2E - (1/c^2)\partial^2E/\partial t^2 = 0$
+- Monochromatic plane wave: $E(z,t) = E_0\cos(kz - \omega t + \phi_0)$
 
-## Light as EM Wave
-Light consists of oscillating electric and magnetic fields. The wave equation governs this propagation.
+### 2. Wave Properties
+- Wavelength ($\lambda$), frequency ($f$), period ($T$), wavenumber ($k$), angular frequency ($\omega$)
+- Phase velocity: $v = \omega/k = f\lambda$
 
-## Vector Calculus for Waves
-- **Gradient** (∇φ): scalar → vector
-- **Divergence** (∇·A): vector → scalar
-- **Curl** (∇×A): vector → vector
-- **Laplacian** (∇²): scalar → scalar, or vector → vector
+### 3. Energy Quantization (Planck's Hypothesis)
+- Energy comes in discrete packets called photons
+- $E = hf$ where $h = 6.6 \times 10^{-34}$ J·s
 
-## Monochromatic Plane Waves
-$$E(z,t) = E_0\cos(kz - \omega t + \phi_0)$$
-- $k = 2\pi/\lambda$ = wavenumber
-- $\omega = 2\pi/T$ = angular frequency
-- $c = \omega/k = 3 \times 10^8$ m/s
+### 4. Photoelectric Effect
+- Light ejects electrons from metal when $f > f_0$
+- $K_{E,max} = hf - \Phi$ (Einstein's equation)
+- $\Phi$ = work function (energy needed to release electron)
+- Intensity affects number of photons, not energy
 
-## Wave-Particle Duality
-Light behaves as both wave and particle (photon).
+### 5. Wave-Particle Duality
+- Light behaves as both wave and particle
+- Photon energy: $E = hf$
+- Photon momentum: $p = h/\lambda$
 
-### Key Concepts
-- **Wavefront**: surface of constant phase
-- **Ray**: perpendicular to wavefronts, direction of energy flow
-- **Beam**: bundle of rays
+### 6. Light Intensity
+- $I = \frac{1}{2}c\epsilon_0 E_0^2$ (wave interpretation)
+- $I = \Gamma_{ph}hf$ (photon interpretation)
+- $\Gamma_{ph}$ = photon flux density (photons/m²/s)
 
-## Photoelectric Effect
-$$KE_{max} = hf - \Phi$$
-
-Observations:
-1. Electron energy depends on **frequency**, not intensity
-2. Electron energy depends on **metal type**
-3. No emission below threshold frequency
-
-## Photon Properties
-| Property | Equation |
-|----------|----------|
-| Energy | $E = hf = \hbar\omega$ |
-| Momentum | $p = h/\lambda$ |
-| Flux density | $\Gamma_{ph} = \Delta N_{ph}/A\Delta t$ |
-| Intensity | $I = \frac{1}{2}c\varepsilon_0 E_0^2 = \Gamma_{ph}hf$ |
-
-## Constants
-- $h = 6.6 \times 10^{-34}$ J·s (Planck's constant)
-- $\hbar = h/2\pi = 1.05 \times 10^{-34}$ J·s
-- $c = 3 \times 10^8$ m/s
-- $e = 1.6 \times 10^{-19}$ C
+## Excluded (Bonus/Enrichment)
+- Stern-Gerlach experiment
+- Historical digressions on Maxwell
+- Vector calculus background

@@ -1,90 +1,86 @@
-# Learn3: Photoelectric Effect and Photon Properties
+# Learn3: Photon Properties - Energy, Momentum, and Light Intensity
 > Estimated time: ~30 minutes
 
-## The Photoelectric Effect
+## Section 1: Photon Energy
+A photon is a quantum of light - an indivisible packet of electromagnetic energy.
 
-### Phenomenon
-When light shines on a metal surface, electrons are emitted from the metal. The key observations:
+The energy of a photon is given by:
 
-1. The kinetic energy of emitted electrons depends on the **wavelength** (color/frequency) of light
-2. The kinetic energy depends on the **metal type**
-3. The kinetic energy does **NOT** depend on light intensity
-
-### Einstein's Explanation (1905)
-Light consists of particles called **photons**. Each photon carries energy:
-$$E_{photon} = hf = \hbar\omega$$
+$$E_{ph} = hf = \frac{hc}{\lambda} = \hbar\omega$$
 
 Where:
-- $h = 6.6 \times 10^{-34}$ J·s = Planck's constant
-- $f$ = frequency of light (Hz)
-- $\hbar = \frac{h}{2\pi} = 1.05 \times 10^{-34}$ J·s = reduced Planck's constant
+- $E_{ph}$ = photon energy (J)
+- $h = 6.6 \times 10^{-34}$ J·s (Planck's constant)
+- $\hbar = h/2\pi = 1.05 \times 10^{-34}$ J·s (reduced Planck's constant)
+- $f$ = frequency (Hz)
+- $\lambda$ = wavelength (m)
+- $\omega = 2\pi f$ = angular frequency (rad/s)
+- $c = 3 \times 10^8$ m/s (speed of light)
 
-### The Photoelectric Equation
-$$KE_{max} = eV_0 = hf - \Phi_{metal}$$
+## Section 2: Photon Momentum
+Light exhibits particle-like behavior. A photon carries momentum:
 
-Where:
-- $KE_{max}$ = maximum kinetic energy of emitted electron
-- $e$ = electron charge ($1.6 \times 10^{-19}$ C)
-- $V_0$ = stopping voltage (voltage that stops the fastest electrons)
-- $hf$ = energy of the incoming photon
-- $\Phi_{metal}$ = work function of the metal (minimum energy needed to eject an electron)
+$$p = \frac{h}{\lambda} = \frac{E_{ph}}{c}$$
 
-### Work Function Values
-Different metals have different work functions:
-- Sodium: $\Phi \approx 1.9$ eV
-- Aluminum: $\Phi \approx 4.1$ eV
-- Gold: $\Phi \approx 5.1$ eV
-
-(1 eV $= 1.6 \times 10^{-19}$ J)
-
-## Photon Momentum
-
-From the photoelectric effect and wave-particle duality:
-$$p = \frac{h}{\lambda}$$
+This is known as the de Broglie relationship for photons.
 
 Where:
-- $p$ = photon momentum
-- $h$ = Planck's constant
-- $\lambda$ = wavelength of light
+- $p$ = photon momentum (kg·m/s)
+- $h = 6.6 \times 10^{-34}$ J·s
+- $\lambda$ = wavelength (m)
 
-This can also be written as:
-$$p = \frac{hf}{c} = \frac{E_{photon}}{c}$$
+Combined with photon energy $E_{ph} = hf$:
 
-## Photon Flux Density
+$$p = \frac{hf}{c} = \frac{E_{ph}}{c}$$
 
-### Photon Flux
-$$\Gamma_{ph} = \frac{\Delta N_{ph}}{A \Delta t}$$
+## Section 3: Light Intensity
+Light intensity $I$ is the energy flowing per unit area per unit time:
 
-Where:
-- $\Gamma_{ph}$ = photon flux density (photons per area per time)
-- $\Delta N_{ph}$ = number of photons
-- $A$ = area
-- $\Delta t$ = time interval
-
-## Light Intensity
-
-### Intensity and Electric Field
-For an electromagnetic wave, the intensity (energy flowing per unit area per second) is:
-$$I = \frac{1}{2}c\varepsilon_0 E_0^2$$
+$$I = \frac{1}{2}c\epsilon_0 E_0^2$$
 
 Where:
 - $I$ = intensity (W/m²)
-- $c$ = speed of light ($3 \times 10^8$ m/s)
-- $\varepsilon_0$ = permittivity of free space ($8.85 \times 10^{-12}$ F/m)
-- $E_0$ = amplitude of electric field
+- $c = 3 \times 10^8$ m/s
+- $\epsilon_0 = 8.85 \times 10^{-12}$ F/m
+- $E_0$ = electric field amplitude (V/m)
 
-### Intensity and Photon Flux
-$$I = \Gamma_{ph} \cdot hf = \Gamma_{ph} \cdot E_{photon}$$
+## Section 4: Photon Flux Density
+Light can also be viewed as a stream of photons. The photon flux density is the number of photons crossing a unit area per unit time:
 
-This relates the photon flux to the light intensity.
+$$\Gamma_{ph} = \frac{\Delta N_{ph}}{A \Delta t}$$
 
-## Key Equations Summary
+The relationship between intensity and photon flux:
 
-| Equation | Description |
-|----------|-------------|
-| $E_{photon} = hf = \hbar\omega$ | Photon energy |
-| $KE_{max} = hf - \Phi$ | Photoelectric effect equation |
-| $p = \frac{h}{\lambda}$ | Photon momentum |
-| $\Gamma_{ph} = \frac{\Delta N_{ph}}{A \Delta t}$ | Photon flux density |
-| $I = \frac{1}{2}c\varepsilon_0 E_0^2$ | EM wave intensity |
-| $I = \Gamma_{ph}hf$ | Intensity in terms of photon flux |
+$$I = \Gamma_{ph} \cdot E_{ph} = \Gamma_{ph} \cdot hf$$
+
+Where:
+- $\Gamma_{ph}$ = photon flux density (photons/m²/s)
+- $\Delta N_{ph}$ = number of photons
+- $A$ = area (m²)
+- $\Delta t$ = time (s)
+
+## Section 5: Wave-Particle Duality
+Light exhibits both wave and particle properties:
+- **Wave properties**: interference, diffraction (explained by wave theory)
+- **Particle properties**: photoelectric effect, Compton scattering (explained by photon model)
+
+The photon energy and momentum equations unify both views:
+
+$$E = hf \quad \text{and} \quad p = \frac{h}{\lambda}$$
+
+## Key Equations
+$$E_{ph} = hf = \frac{hc}{\lambda} = \hbar\omega$$
+
+$$p = \frac{h}{\lambda} = \frac{E_{ph}}{c}$$
+
+$$I = \frac{1}{2}c\epsilon_0 E_0^2 = \Gamma_{ph}hf$$
+
+$$\Gamma_{ph} = \frac{\Delta N_{ph}}{A \Delta t}$$
+
+Where:
+- $E_{ph}$ = photon energy (J)
+- $p$ = photon momentum (kg·m/s)
+- $h = 6.6 \times 10^{-34}$ J·s
+- $\hbar = 1.05 \times 10^{-34}$ J·s
+- $c = 3 \times 10^8$ m/s
+- $\Gamma_{ph}$ = photon flux density (photons/m²/s)

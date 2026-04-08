@@ -1,68 +1,73 @@
-# Learn2: Monochromatic Plane Waves and Light Properties
+# Learn2: Energy Quantization and the Photoelectric Effect
 > Estimated time: ~30 minutes
 
-## Monochromatic Plane Waves
+## Section 1: Energy Quantization
+Classical physics failed to explain certain phenomena like the photoelectric effect. This led to the development of quantum mechanics.
 
-### General Solution to the Wave Equation
-The general form of an electromagnetic plane wave is:
-$$E(\vec{r}, t) = E_0\cos(\vec{k} \cdot \vec{r} - \omega t + \phi_0)$$
+Planck's hypothesis states that energy is quantized:
 
-Where:
-- $E_0$ = amplitude of the electric field
-- $\vec{k} = \hat{x}k_x + \hat{y}k_y + \hat{z}k_z$ = wave vector
-- $|\vec{k}| = \frac{2\pi}{\lambda}$ = wavenumber (spatial angular frequency)
-- $\omega$ = angular frequency
-- $\phi_0$ = initial phase
-- $\vec{r}$ = position vector
-
-### 1D Form
-For a wave propagating in the z-direction:
-$$E(z,t) = E_0\cos(kz - \omega t + \phi_0)$$
-
-### Relationship Between Wave Parameters
-$$k = \frac{2\pi}{\lambda} = \frac{\omega}{c}$$
+$$E = hf$$
 
 Where:
-- $\lambda$ = wavelength (spatial period)
-- $c$ = speed of light ($3 \times 10^8$ m/s in vacuum)
-- $k$ = wavenumber (radians per unit length)
+- $E$ = energy of a photon (J)
+- $h$ = Planck's constant = $6.6 \times 10^{-34}$ J·s
+- $f$ = frequency of light (Hz)
 
-### Angular Frequency
-$$\omega = \frac{2\pi}{T}$$
+This means light energy comes in discrete packets called photons.
+
+## Section 2: The Photoelectric Effect
+When light shines on a metal surface, electrons can be emitted. This is the photoelectric effect.
+
+Key experimental observations:
+- Electrons are emitted only when light frequency exceeds a threshold $f_0$
+- The kinetic energy of emitted electrons depends on frequency, not intensity
+- Increasing light intensity increases the number of electrons (current), not their energy
+
+## Section 3: Einstein's Explanation
+Einstein explained the photoelectric effect by proposing that light consists of photons, each with energy $hf$.
+
+When a photon strikes an electron in the metal:
+- The photon transfers its energy to the electron
+- Some energy is used to overcome the work function $\Phi$ of the metal
+- The remaining energy becomes the electron's kinetic energy
+
+The photoelectric equation:
+
+$$K_{E,max} = hf - \Phi$$
 
 Where:
-- $T$ = temporal period (time for one complete oscillation)
+- $K_{E,max}$ = maximum kinetic energy of emitted electron (J or eV)
+- $h$ = Planck's constant ($6.6 \times 10^{-34}$ J·s)
+- $f$ = frequency of incident light (Hz)
+- $\Phi$ = work function of the metal (J or eV)
 
-### Phase Velocity
-$$v_{phase} = \frac{\omega}{k} = \frac{c}{n}$$
+The stopping voltage $V_0$ relates to kinetic energy:
 
-For light in vacuum: $v_{phase} = c$
+$$eV_0 = K_{E,max}$$
 
-## Wavefronts, Rays, and Beams
+Where $e = 1.6 \times 10^{-19}$ C.
 
-### Wavefront
-The locus of points with identical wave displacement (constant phase).
+## Section 4: Threshold Frequency
+Photoemission occurs only when:
 
-### Ray
-A line perpendicular to a series of successive wavefronts; specifies the direction of energy flow.
+$$hf > \Phi$$
 
-### Beam
-A bundle of rays traveling together.
+The threshold frequency is:
 
-## Light: Particle-Wave Duality
+$$f_0 = \frac{\Phi}{h}$$
 
-### Light as Electromagnetic Wave
-Light = EM waves with wavelengths approximately $400-700$ nm (visible range).
+Below this frequency, no electrons are emitted regardless of light intensity.
 
-### Light as Particles (Photons)
-Photons are indivisible units of light (particles of light).
+## Key Equations
+$$E = hf$$
 
-## Key Equations Summary
+$$K_{E,max} = hf - \Phi = eV_0$$
 
-| Equation | Description |
-|----------|-------------|
-| $E(z,t) = E_0\cos(kz - \omega t + \phi_0)$ | 1D plane wave |
-| $\vec{k} = \frac{2\pi}{\lambda}$ | Wavenumber |
-| $k = \frac{\omega}{c}$ | Wave number from angular frequency |
-| $\omega = \frac{2\pi}{T}$ | Angular frequency |
-| $c = 3 \times 10^8$ m/s | Speed of light in vacuum |
+$$f_0 = \frac{\Phi}{h}$$
+
+Where:
+- $E$ = photon energy (J)
+- $h = 6.6 \times 10^{-34}$ J·s (Planck's constant)
+- $K_{E,max}$ = maximum electron kinetic energy (J)
+- $\Phi$ = work function (J or eV)
+- $f_0$ = threshold frequency (Hz)
