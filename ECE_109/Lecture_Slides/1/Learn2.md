@@ -1,95 +1,68 @@
-# Learn2: Wave Equation & Electromagnetic Waves
+# Learn2: Monochromatic Plane Waves and Light Properties
 > Estimated time: ~30 minutes
 
-## Section 1: What is a Wave?
-A wave is a periodically repeating disturbance in space and time that propagates through a medium.
+## Monochromatic Plane Waves
 
-Light: oscillation of the electric and magnetic field amplitude.
-
-## Section 2: The Wave Equation
-The general wave equation in three dimensions:
-$$\nabla^2 u - \frac{1}{c^2}\frac{\partial^2 u}{\partial t^2} = 0$$
-
-For the electric field in one dimension:
-$$\frac{\partial^2 E}{\partial z^2} - \frac{1}{c^2}\frac{\partial^2 E}{\partial t^2} = 0$$
+### General Solution to the Wave Equation
+The general form of an electromagnetic plane wave is:
+$$E(\vec{r}, t) = E_0\cos(\vec{k} \cdot \vec{r} - \omega t + \phi_0)$$
 
 Where:
-- $\nabla^2$ is the Laplacian operator
-- $c$ is the speed of light ($3 \times 10^8$ m/s in vacuum)
-- $u$ represents the wave amplitude (can be a scalar or vector)
-
-**Important property**: The wave equation is linear - if f and g are solutions, then h = f + g is also a solution (principle of superposition).
-
-## Section 3: General Solution to the Wave Equation
-The electric field wave solution:
-$$E(z,t) = E_0 \cos(kz - \omega t + \phi_0)$$
-
-Where:
-- $E_0$ = amplitude
-- $k$ = wavenumber (spatial angular frequency) = $2\pi/\lambda$
-- $\omega$ = angular frequency = $2\pi f$
+- $E_0$ = amplitude of the electric field
+- $\vec{k} = \hat{x}k_x + \hat{y}k_y + \hat{z}k_z$ = wave vector
+- $|\vec{k}| = \frac{2\pi}{\lambda}$ = wavenumber (spatial angular frequency)
+- $\omega$ = angular frequency
 - $\phi_0$ = initial phase
-- $\lambda$ = wavelength
-- $f$ = frequency
+- $\vec{r}$ = position vector
 
-## Section 4: Vector Calculus Review
-### Gradient ($\nabla \phi$)
-Measures rate and direction of change in a scalar field:
-$$\nabla \phi = \frac{\partial \phi}{\partial x}\hat{x} + \frac{\partial \phi}{\partial y}\hat{y} + \frac{\partial \phi}{\partial z}\hat{z}$$
+### 1D Form
+For a wave propagating in the z-direction:
+$$E(z,t) = E_0\cos(kz - \omega t + \phi_0)$$
 
-Maps: scalar → vector
+### Relationship Between Wave Parameters
+$$k = \frac{2\pi}{\lambda} = \frac{\omega}{c}$$
 
-### Divergence ($\nabla \cdot \vec{A}$)
-Measures magnitude of source or sink at a point in a vector field:
-$$\nabla \cdot \vec{A} = \frac{\partial A_x}{\partial x} + \frac{\partial A_y}{\partial y} + \frac{\partial A_z}{\partial z}$$
+Where:
+- $\lambda$ = wavelength (spatial period)
+- $c$ = speed of light ($3 \times 10^8$ m/s in vacuum)
+- $k$ = wavenumber (radians per unit length)
 
-Maps: vector → scalar
-
-### Curl ($\nabla \times \vec{A}$)
-Measures tendency to rotate about a point in a vector field:
-$$\nabla \times \vec{A} = \left(\frac{\partial A_z}{\partial y} - \frac{\partial A_y}{\partial z}\right)\hat{x} + \left(\frac{\partial A_x}{\partial z} - \frac{\partial A_z}{\partial x}\right)\hat{y} + \left(\frac{\partial A_y}{\partial x} - \frac{\partial A_x}{\partial y}\right)\hat{z}$$
-
-Maps: vector → vector
-
-### Laplacian
-**Scalar Laplacian**: $\nabla^2 \phi = \frac{\partial^2 \phi}{\partial x^2} + \frac{\partial^2 \phi}{\partial y^2} + \frac{\partial^2 \phi}{\partial z^2}$
-Maps: scalar → scalar
-
-**Vector Laplacian**: $\nabla^2 \vec{A} = \nabla^2 A_x \hat{x} + \nabla^2 A_y \hat{y} + \nabla^2 A_z \hat{z}$
-Maps: vector → vector
-
-## Section 5: Monochromatic Plane Waves
-A monochromatic plane wave is a solution to the wave equation with a single frequency.
-
-**Temporal period (T)**: Time for one complete oscillation
+### Angular Frequency
 $$\omega = \frac{2\pi}{T}$$
 
-**Spatial period (wavelength $\lambda$)**: Distance for one complete oscillation
-$$k = \frac{2\pi}{\lambda}$$
+Where:
+- $T$ = temporal period (time for one complete oscillation)
 
-**Relationship between $\omega$ and $k$:
-$$\omega = ck \quad \text{or} \quad c = f\lambda = \frac{\omega}{k}$$
+### Phase Velocity
+$$v_{phase} = \frac{\omega}{k} = \frac{c}{n}$$
 
-**General form in 3D:**
-$$E(\vec{r}, t) = E_0 \cos(\vec{k} \cdot \vec{r} - \omega t + \phi_0)$$
+For light in vacuum: $v_{phase} = c$
 
-Where $\vec{k} = k_x\hat{x} + k_y\hat{y} + k_z\hat{z}$ is the wavevector with magnitude $|\vec{k}| = \frac{2\pi}{\lambda}$
+## Wavefronts, Rays, and Beams
 
-## Section 6: Light as EM Waves
-Light is an electromagnetic wave with:
-- Electric field $\vec{E}$ and magnetic field $\vec{B}$ perpendicular to each other and to direction of propagation
-- Speed $c = \frac{1}{\sqrt{\varepsilon_0 \mu_0}} = 3 \times 10^8$ m/s in vacuum
+### Wavefront
+The locus of points with identical wave displacement (constant phase).
 
-## Key Equations
-$$\nabla^2 u - \frac{1}{c^2}\frac{\partial^2 u}{\partial t^2} = 0 \quad \text{(wave equation)}$$
-$$E(z,t) = E_0 \cos(kz - \omega t + \phi_0) \quad \text{(traveling wave)}$$
-$$\omega = 2\pi f \quad \text{(angular frequency)}$$
-$$k = \frac{2\pi}{\lambda} \quad \text{(wavenumber)}$$
-$$c = f\lambda = \frac{\omega}{k} \quad \text{(phase velocity)}$$
+### Ray
+A line perpendicular to a series of successive wavefronts; specifies the direction of energy flow.
 
-## Key Definitions
-- **Wave**: Periodically repeating disturbance in space and time
-- **Wavefront**: Locus of points with identical wave displacement
-- **Ray**: Line perpendicular to successive wavefronts; specifies energy flow direction
-- **Plane wave**: Wave with constant phase over planes perpendicular to propagation
-- **Monochromatic**: Single frequency/wavelength
+### Beam
+A bundle of rays traveling together.
+
+## Light: Particle-Wave Duality
+
+### Light as Electromagnetic Wave
+Light = EM waves with wavelengths approximately $400-700$ nm (visible range).
+
+### Light as Particles (Photons)
+Photons are indivisible units of light (particles of light).
+
+## Key Equations Summary
+
+| Equation | Description |
+|----------|-------------|
+| $E(z,t) = E_0\cos(kz - \omega t + \phi_0)$ | 1D plane wave |
+| $\vec{k} = \frac{2\pi}{\lambda}$ | Wavenumber |
+| $k = \frac{\omega}{c}$ | Wave number from angular frequency |
+| $\omega = \frac{2\pi}{T}$ | Angular frequency |
+| $c = 3 \times 10^8$ m/s | Speed of light in vacuum |

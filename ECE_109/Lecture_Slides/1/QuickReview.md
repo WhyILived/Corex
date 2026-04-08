@@ -1,62 +1,52 @@
-# QuickReview: Concise Summary
-> Lecture 1 - Introduction to Quantum Mechanics
+# QuickReview: Lecture 1 - Introduction to Quantum Mechanics and Light
 
-## Core Concepts
+## Wave Equation
+The wave equation describes wave propagation:
+$$\nabla^2 u - \frac{1}{c^2}\frac{\partial^2}{\partial t^2}u = 0$$
 
-### Wave-Particle Duality
-Light and matter exhibit both wave-like and particle-like properties depending on the experiment.
+Key property: **Superposition principle** - sum of solutions is also a solution.
 
-- **Light as wave**: Interference, diffraction → Young's slits
-- **Light as particle**: Photoelectric effect, Compton scattering
-- **Electron as wave**: Electron diffraction, interference patterns
+## Light as EM Wave
+Light consists of oscillating electric and magnetic fields. The wave equation governs this propagation.
 
-### Key Quantities
-- **Photon energy**: $E = hf = hc/\lambda$
-- **Photon momentum**: $p = h/\lambda$
-- **de Broglie wavelength**: $\lambda = h/p$ (for any particle)
+## Vector Calculus for Waves
+- **Gradient** (∇φ): scalar → vector
+- **Divergence** (∇·A): vector → scalar
+- **Curl** (∇×A): vector → vector
+- **Laplacian** (∇²): scalar → scalar, or vector → vector
 
-### Photoelectric Effect
-- $K_E = hf - \Phi$ (electron kinetic energy)
-- $\Phi$ = work function (metal-specific)
-- Threshold frequency: $hf_0 = \Phi$
+## Monochromatic Plane Waves
+$$E(z,t) = E_0\cos(kz - \omega t + \phi_0)$$
+- $k = 2\pi/\lambda$ = wavenumber
+- $\omega = 2\pi/T$ = angular frequency
+- $c = \omega/k = 3 \times 10^8$ m/s
 
-### Wave Equation
-$$\frac{\partial^2 E}{\partial z^2} - \frac{1}{c^2}\frac{\partial^2 E}{\partial t^2} = 0$$
+## Wave-Particle Duality
+Light behaves as both wave and particle (photon).
 
-Solution: $E = E_0 \cos(kz - \omega t)$
+### Key Concepts
+- **Wavefront**: surface of constant phase
+- **Ray**: perpendicular to wavefronts, direction of energy flow
+- **Beam**: bundle of rays
 
-### Vector Calculus
-- **Gradient** ($\nabla\phi$): scalar → vector
-- **Divergence** ($\nabla \cdot \vec{A}$): vector → scalar  
-- **Curl** ($\nabla \times \vec{A}$): vector → vector
-- **Laplacian** ($\nabla^2$): second derivatives
+## Photoelectric Effect
+$$KE_{max} = hf - \Phi$$
 
-### Uncertainty Principle
-$$\Delta x \cdot \Delta p_x \gtrsim \hbar \quad \text{and} \quad \Delta E \cdot \Delta t \gtrsim \hbar$$
+Observations:
+1. Electron energy depends on **frequency**, not intensity
+2. Electron energy depends on **metal type**
+3. No emission below threshold frequency
 
-Fundamental limit - not measurement error!
+## Photon Properties
+| Property | Equation |
+|----------|----------|
+| Energy | $E = hf = \hbar\omega$ |
+| Momentum | $p = h/\lambda$ |
+| Flux density | $\Gamma_{ph} = \Delta N_{ph}/A\Delta t$ |
+| Intensity | $I = \frac{1}{2}c\varepsilon_0 E_0^2 = \Gamma_{ph}hf$ |
 
-### Hydrogen Atom Quantum Numbers
-- $n = 1, 2, 3, ...$ (energy)
-- $\ell = 0, 1, 2, ..., n-1$ (orbital angular momentum)
-- $m_\ell = -\ell, ..., +\ell$ (angular momentum z-component)
-- $m_s = \pm 1/2$ (electron spin)
-
-Energy: $E_n = -13.6/n^2$ eV
-
-### Lasers
-Three processes: **Absorption**, **Spontaneous emission**, **Stimulated emission**
-
-Laser = Light Amplification by Stimulated Emission of Radiation
-
-Key requirements:
-1. Population inversion
-2. Optical cavity (mirrors)
-3. Metastable state
-
-## Memorize
-- $h = 6.63 \times 10^{-34}$ J·s
-- $\hbar = 1.055 \times 10^{-34}$ J·s
+## Constants
+- $h = 6.6 \times 10^{-34}$ J·s (Planck's constant)
+- $\hbar = h/2\pi = 1.05 \times 10^{-34}$ J·s
 - $c = 3 \times 10^8$ m/s
-- $E_n = -13.6/n^2$ eV
-- $a_0 = 0.0529$ nm (Bohr radius)
+- $e = 1.6 \times 10^{-19}$ C

@@ -87,6 +87,7 @@ First check coverage before checking accuracy - we want all content present befo
 Now verify correctness of all content - only after we've confirmed all content is present.
 
 1. **Initial parallel spawn**: Spawn Anti-Hallucination Agents for ALL Learn/Test pairs at the same time:
+   - Give sub-agent: `agents/anti_hallucinate_agent.md` as context for EACH spawn
    - Agent for Learn1+Test1
    - Agent for Learn2+Test2
    - Agent for Learn3+Test3 (if exists)

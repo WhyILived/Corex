@@ -1,57 +1,67 @@
-# Test1: Quantum Mechanics & Wave-Particle Duality
-> Tests: Learn1 material
+# Test1: Knowledge Check
+> Tests: Learn1 material (Wave Equation and Electromagnetic Waves)
 > Time: ~15 minutes
 
 ## Conceptual Questions
 
-1. Explain why classical physics could not explain the photoelectric effect. What was Einstein's contribution?
+1. State the wave equation in both 3D and 1D forms, and explain what each term represents.
 
-2. What is the wave-particle duality of light? Describe one experiment that demonstrates light's wave nature and one that demonstrates its particle nature.
+2. Explain why the superposition principle applies to the wave equation. If $f_1(x,t)$ and $f_2(x,t)$ are both solutions to the 1D wave equation, is their sum also a solution? Why?
 
-3. Explain the difference between the work function of a metal and the kinetic energy of an emitted photoelectron.
+3. What is the physical interpretation of light being an electromagnetic wave? What quantity oscillates in a light wave?
 
-4. What is a black body? Why did classical physics fail to describe black body radiation correctly?
-
-5. State two observations from the photoelectric experiment that support the photon model of light.
+4. Match each vector calculus operation with its input-output behavior:
+   - Gradient
+   - Divergence
+   - Curl
+   - Scalar Laplacian
+   - Vector Laplacian
 
 ## Calculation Problems
 
-1. **Photon Energy Calculation**
-   - Calculate the energy of a photon with wavelength 550 nm (green light).
-   - Express your answer in both Joules and electron-volts (eV).
-   - Given: $h = 6.63 \times 10^{-34}$ J·s, $c = 3 \times 10^8$ m/s, $1 \text{ eV} = 1.6 \times 10^{-19}$ J
+1. Write the explicit form of the scalar Laplacian in 3D Cartesian coordinates.
 
-2. **Photoelectric Effect**
-   - Sodium has a work function of 2.28 eV.
-   - (a) What is the threshold wavelength for photoemission?
-   - (b) If light of 400 nm wavelength shines on sodium, what is the maximum kinetic energy of emitted electrons?
-   - (c) What is the stopping voltage needed to stop these electrons?
+2. If a wave function is $u(x,y,z,t) = A\sin(kx - \omega t)$, verify whether it satisfies the 1D wave equation $\frac{\partial^2 u}{\partial x^2} - \frac{1}{c^2}\frac{\partial^2 u}{\partial t^2} = 0$.
 
-3. **de Broglie Wavelength**
-   - Calculate the de Broglie wavelength of an electron accelerated through 100 V.
-   - (Hint: Kinetic energy $K = eV$, where $e = 1.6 \times 10^{-19}$ C)
-   - Given: $m_e = 9.11 \times 10^{-31}$ kg
+3. Given $\phi(x,y,z) = x^2 + y^2 + z^2$, calculate $\nabla \phi$.
 
-4. **Light Intensity**
-   - A 100 W light bulb emits at 550 nm with 10% efficiency. How many photons per second does it emit?
+4. For a vector field $\vec{A} = x\hat{x} + y\hat{y} + z\hat{z}$, calculate $\nabla \cdot \vec{A}$.
 
 ## Answers
 
-1. **Photon Energy:**
-   - $E = \frac{hc}{\lambda} = \frac{(6.63 \times 10^{-34})(3 \times 10^8)}{550 \times 10^{-9}} = 3.62 \times 10^{-19}$ J
-   - $E = \frac{3.62 \times 10^{-19}}{1.6 \times 10^{-19}} = 2.26$ eV
+1. The 3D wave equation: $\nabla^2 u - \frac{1}{c^2}\frac{\partial^2 u}{\partial t^2} = 0$
+   The 1D wave equation: $\frac{\partial^2 E}{\partial z^2} - \frac{1}{c^2}\frac{\partial^2 E}{\partial t^2} = 0$
+   - $\nabla^2$ is the Laplacian operator
+   - $u$ is the wave function (could be scalar like pressure or vector like electric field)
+   - $c$ is the speed of wave propagation
+   - The equation describes how the curvature of the wave in space relates to its time variation
 
-2. **Photoelectric Effect:**
-   - (a) $\lambda_0 = \frac{hc}{\Phi} = \frac{(6.63 \times 10^{-34})(3 \times 10^8)}{(2.28)(1.6 \times 10^{-19})} = 544$ nm
-   - (b) $K_{max} = \frac{hc}{\lambda} - \Phi = 2.26 - 2.28 = -0.02$ eV (actually $K_{max} = 3.10 - 2.28 = 0.82$ eV using $hc/\lambda$ directly)
-   - (c) $V_0 = \frac{K_{max}}{e} = 0.82$ V
+2. Yes, the sum is also a solution. The wave equation is linear, meaning it contains $u$ and its derivatives only to the first power. If $f$ and $g$ individually satisfy $\nabla^2 f - \frac{1}{c^2}\frac{\partial^2 f}{\partial t^2} = 0$ and $\nabla^2 g - \frac{1}{c^2}\frac{\partial^2 g}{\partial t^2} = 0$, then substituting $h = f + g$ gives:
+   $\nabla^2(f+g) - \frac{1}{c^2}\frac{\partial^2(f+g)}{\partial t^2} = (\nabla^2 f - \frac{1}{c^2}\frac{\partial^2 f}{\partial t^2}) + (\nabla^2 g - \frac{1}{c^2}\frac{\partial^2 g}{\partial t^2}) = 0$
+   Therefore, $h$ is also a solution.
 
-3. **de Broglie Wavelength:**
-   - $K = eV = 100$ eV $= 1.6 \times 10^{-17}$ J
-   - $p = \sqrt{2mK} = \sqrt{2(9.11 \times 10^{-31})(1.6 \times 10^{-17})} = 5.3 \times 10^{-24}$ kg·m/s
-   - $\lambda = \frac{h}{p} = \frac{6.63 \times 10^{-34}}{5.3 \times 10^{-24}} = 0.123$ nm
+3. Light is an electromagnetic wave where the electric and magnetic field strengths oscillate perpendicular to the direction of propagation. The quantities that oscillate are the electric field amplitude $E$ and magnetic field amplitude $B$.
 
-4. **Photon emission rate:**
-   - Power emitted = 10 W
-   - Energy per photon at 550 nm = $3.62 \times 10^{-19}$ J
-   - Photons/second = $\frac{10}{3.62 \times 10^{-19}} = 2.76 \times 10^{19}$ photons/s
+4.
+   - Gradient: scalar → vector
+   - Divergence: vector → scalar
+   - Curl: vector → vector
+   - Scalar Laplacian: scalar → scalar (divergence of gradient)
+   - Vector Laplacian: vector → vector (applies scalar Laplacian to each component)
+
+**Calculation Answers:**
+
+1. $\nabla^2 \phi = \frac{\partial^2 \phi}{\partial x^2} + \frac{\partial^2 \phi}{\partial y^2} + \frac{\partial^2 \phi}{\partial z^2}$
+
+2. For $u = A\sin(kx - \omega t)$:
+   - $\frac{\partial^2 u}{\partial x^2} = -k^2 A\sin(kx - \omega t)$
+   - $\frac{\partial^2 u}{\partial t^2} = -\omega^2 A\sin(kx - \omega t)$
+   
+   Substituting into the wave equation:
+   $-k^2 A\sin(kx - \omega t) - \frac{1}{c^2}(-\omega^2 A\sin(kx - \omega t)) = -A\sin(kx - \omega t)(k^2 - \frac{\omega^2}{c^2}) = 0$
+   
+   This equals zero only if $k^2 = \frac{\omega^2}{c^2}$, meaning $c = \frac{\omega}{k}$ (the phase velocity condition). So yes, it satisfies the wave equation if this condition is met.
+
+3. $\nabla \phi = \frac{\partial}{\partial x}(x^2+y^2+z^2)\hat{x} + \frac{\partial}{\partial y}(x^2+y^2+z^2)\hat{y} + \frac{\partial}{\partial z}(x^2+y^2+z^2)\hat{z} = 2x\hat{x} + 2y\hat{y} + 2z\hat{z}$
+
+4. $\nabla \cdot \vec{A} = \frac{\partial x}{\partial x} + \frac{\partial y}{\partial y} + \frac{\partial z}{\partial z} = 1 + 1 + 1 = 3$

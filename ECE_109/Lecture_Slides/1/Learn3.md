@@ -1,67 +1,90 @@
-# Learn3: Heisenberg's Uncertainty Principle
+# Learn3: Photoelectric Effect and Photon Properties
 > Estimated time: ~30 minutes
 
-## Section 1: Introduction
-The Heisenberg Uncertainty Principle is a fundamental limit to what we can simultaneously know about certain pairs of physical quantities.
+## The Photoelectric Effect
 
-Unlike measurement errors, this is a **theoretical limit** inherent to quantum mechanics - not about instrument precision.
+### Phenomenon
+When light shines on a metal surface, electrons are emitted from the metal. The key observations:
 
-## Section 2: Position-Momentum Uncertainty
-For a particle, we cannot simultaneously know exact values of position $x$ and momentum $p_x$ along the same direction:
+1. The kinetic energy of emitted electrons depends on the **wavelength** (color/frequency) of light
+2. The kinetic energy depends on the **metal type**
+3. The kinetic energy does **NOT** depend on light intensity
 
-$$\Delta x \cdot \Delta p_x \gtrsim \frac{\hbar}{2}$$
-
-Where:
-- $\Delta x$ = uncertainty in position
-- $\Delta p_x$ = uncertainty in momentum
-- $\hbar = \frac{h}{2\pi} = 1.055 \times 10^{-34}$ J·s
-
-More precisely: $\Delta x \Delta p_x \geq \frac{\hbar}{2}$ (some texts use $\hbar$ or even $h$)
-
-## Section 3: Understanding the Principle
-**For a free electron** (wave with single wavelength $\lambda$):
-- The wave extends infinitely in space → $\Delta x = \infty$
-- Momentum is exactly defined: $p = h/\lambda$ → $\Delta p_x = 0$
-- Product: $\Delta x \cdot \Delta p_x = \infty \cdot 0 > \frac{\hbar}{2}$ ✓
-
-**For electron in a box** (confined to region width $a$):
-- $\Delta x \approx a$ (uncertainty in position)
-- Momentum can be in two directions → $\Delta p_x \sim h/a$
-- Product: $\Delta x \cdot \Delta p_x \sim a \cdot (h/a) = h \geq \frac{\hbar}{2}$ ✓
-
-## Section 4: Energy-Time Uncertainty
-There is also an uncertainty relationship between energy and time:
-
-$$\Delta E \cdot \Delta t \gtrsim \frac{\hbar}{2}$$
+### Einstein's Explanation (1905)
+Light consists of particles called **photons**. Each photon carries energy:
+$$E_{photon} = hf = \hbar\omega$$
 
 Where:
-- $\Delta E$ = uncertainty in energy
-- $\Delta t$ = time during which energy is measured
+- $h = 6.6 \times 10^{-34}$ J·s = Planck's constant
+- $f$ = frequency of light (Hz)
+- $\hbar = \frac{h}{2\pi} = 1.05 \times 10^{-34}$ J·s = reduced Planck's constant
 
-Physical meaning: A quantum state that exists for only a short time $\Delta t$ has an uncertainty $\Delta E$ in its energy.
+### The Photoelectric Equation
+$$KE_{max} = eV_0 = hf - \Phi_{metal}$$
 
-## Section 5: Consequences
-1. **Particles cannot be localized to arbitrarily small regions** without increasing their momentum uncertainty
-2. **The ground state of a confined particle** has non-zero momentum due to confinement
-3. **Natural linewidth broadening**: Excited states have finite lifetimes, leading to energy uncertainty
+Where:
+- $KE_{max}$ = maximum kinetic energy of emitted electron
+- $e$ = electron charge ($1.6 \times 10^{-19}$ C)
+- $V_0$ = stopping voltage (voltage that stops the fastest electrons)
+- $hf$ = energy of the incoming photon
+- $\Phi_{metal}$ = work function of the metal (minimum energy needed to eject an electron)
 
-## Section 6: Applications
-**Atomic scale**: Electron confined to ~0.1 nm (typical atom size):
-$$\Delta p_x \approx \frac{\hbar}{\Delta x} = \frac{1.055 \times 10^{-34}}{10^{-10}} = 1.055 \times 10^{-24} \text{ kg·m/s}$$
+### Work Function Values
+Different metals have different work functions:
+- Sodium: $\Phi \approx 1.9$ eV
+- Aluminum: $\Phi \approx 4.1$ eV
+- Gold: $\Phi \approx 5.1$ eV
 
-This gives kinetic energy of several eV - explaining why electrons in atoms have significant energy!
+(1 eV $= 1.6 \times 10^{-19}$ J)
 
-**Macroscopic scale**: 100 g apple in 1 m crate:
-$$\Delta v_x \approx \frac{\hbar}{m \Delta x} = \frac{1.055 \times 10^{-34}}{(0.1)(1)} = 1.055 \times 10^{-33} \text{ m/s}$$
+## Photon Momentum
 
-Negligible for everyday objects - quantum effects only matter at small scales.
+From the photoelectric effect and wave-particle duality:
+$$p = \frac{h}{\lambda}$$
 
-## Key Equations
-$$\Delta x \cdot \Delta p_x \gtrsim \frac{\hbar}{2} \quad \text{(position-momentum)}$$
-$$\Delta E \cdot \Delta t \gtrsim \frac{\hbar}{2} \quad \text{(energy-time)}$$
+Where:
+- $p$ = photon momentum
+- $h$ = Planck's constant
+- $\lambda$ = wavelength of light
 
-## Key Definitions
-- **Uncertainty principle**: Fundamental limit on simultaneous knowledge of certain paired observables
-- **$\Delta x$**: Spread in position measurements
-- **$\Delta p_x$**: Spread in momentum measurements  
-- **Ground state**: Lowest energy state of a confined particle
+This can also be written as:
+$$p = \frac{hf}{c} = \frac{E_{photon}}{c}$$
+
+## Photon Flux Density
+
+### Photon Flux
+$$\Gamma_{ph} = \frac{\Delta N_{ph}}{A \Delta t}$$
+
+Where:
+- $\Gamma_{ph}$ = photon flux density (photons per area per time)
+- $\Delta N_{ph}$ = number of photons
+- $A$ = area
+- $\Delta t$ = time interval
+
+## Light Intensity
+
+### Intensity and Electric Field
+For an electromagnetic wave, the intensity (energy flowing per unit area per second) is:
+$$I = \frac{1}{2}c\varepsilon_0 E_0^2$$
+
+Where:
+- $I$ = intensity (W/m²)
+- $c$ = speed of light ($3 \times 10^8$ m/s)
+- $\varepsilon_0$ = permittivity of free space ($8.85 \times 10^{-12}$ F/m)
+- $E_0$ = amplitude of electric field
+
+### Intensity and Photon Flux
+$$I = \Gamma_{ph} \cdot hf = \Gamma_{ph} \cdot E_{photon}$$
+
+This relates the photon flux to the light intensity.
+
+## Key Equations Summary
+
+| Equation | Description |
+|----------|-------------|
+| $E_{photon} = hf = \hbar\omega$ | Photon energy |
+| $KE_{max} = hf - \Phi$ | Photoelectric effect equation |
+| $p = \frac{h}{\lambda}$ | Photon momentum |
+| $\Gamma_{ph} = \frac{\Delta N_{ph}}{A \Delta t}$ | Photon flux density |
+| $I = \frac{1}{2}c\varepsilon_0 E_0^2$ | EM wave intensity |
+| $I = \Gamma_{ph}hf$ | Intensity in terms of photon flux |

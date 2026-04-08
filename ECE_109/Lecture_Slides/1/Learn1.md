@@ -1,103 +1,65 @@
-# Learn1: Quantum Mechanics & Wave-Particle Duality
+# Learn1: Wave Equation and Electromagnetic Waves
 > Estimated time: ~30 minutes
 
-## Section 1: Why Quantum Mechanics?
-Classical physics (circa 1900) could not explain certain phenomena:
-- **Discrete atomic spectra**: Atoms emit light only at specific wavelengths, not continuously
-- **Photoelectric effect**: Electrons ejected from metal depend on light frequency, not intensity
+## Wave Equation Fundamentals
+A wave is a periodically repeating disturbance in space and time that propagates through a medium.
 
-These unexplained phenomena led to quantum mechanics development:
-- Schrödinger: "wave" mechanics
-- Heisenberg: "matrix" mechanics
+The wave equation describes how waves propagate:
+$$\nabla^2 u - \frac{1}{c^2}\frac{\partial^2}{\partial t^2}u = 0$$
 
-## Section 2: Light as Particles - Photons
-Historically, understanding of light evolved:
-- **Newton**: Light consists of particles
-- **Maxwell**: Light is an electromagnetic wave
-- **Planck, Einstein**: Light is both wave AND particle (wave-particle duality)
-
-Light consists of discrete energy packets called **photons**.
-
-## Section 3: The Photoelectric Effect
-When light strikes a metal surface, electrons can be emitted. Key observations:
-- Electron kinetic energy depends on light **frequency** (not intensity)
-- There is a threshold frequency f₀ below which no electrons are emitted
-- Increasing light intensity increases number of electrons, not their energy
-
-Einstein's explanation: Photon energy is quantized:
-$$E = hf$$
+For the electric field in one dimension:
+$$\frac{\partial^2}{\partial z^2}E(z,t) - \frac{1}{c^2}\frac{\partial^2}{\partial t^2}E(z,t) = 0$$
 
 Where:
-- $E$ = photon energy (J)
-- $h$ = Planck's constant ($6.63 \times 10^{-34}$ J·s)
-- $f$ = frequency (Hz)
+- $\nabla^2$ = Laplacian operator
+- $u = u(x,y,z,t)$ is the wave function (can be a scalar or vector)
+- $c$ = speed of wave propagation
 
-The kinetic energy of emitted electrons:
-$$K_{E} = hf - \Phi$$
+## Key Property: Superposition Principle
+The wave equation is a linear differential equation. If $f(x,y,z,t)$ and $g(x,y,z,t)$ are both solutions, then their superposition $h(x,y,z,t) = f(x,y,z,t) + g(x,y,z,t)$ is also a solution.
 
-Where:
-- $K_E$ = maximum kinetic energy of ejected electron (J)
-- $\Phi$ = work function of the metal (J) - the energy needed to escape the metal
+This means waves can pass through each other without interaction.
 
-## Section 4: Photon Properties
-**Photon energy:**
-$$E_{ph} = hf = \frac{hc}{\lambda}$$
+## Light as an Electromagnetic Wave
+Light consists of oscillations of electric and magnetic field amplitudes. The wave equation describes the propagation of these electromagnetic fields.
 
-**Photon momentum:**
-$$p = \frac{h}{\lambda}$$
+## Vector Calculus for Waves
 
-**Light intensity (energy flowing per unit area per second):**
-$$I = \Gamma_{ph}hf$$
+### Gradient
+Measures the rate and direction of change in a scalar field:
+$$\nabla \phi = \hat{x}\frac{\partial \phi}{\partial x} + \hat{y}\frac{\partial \phi}{\partial y} + \hat{z}\frac{\partial \phi}{\partial z}$$
 
 Where:
-- $\Gamma_{ph} = \frac{\Delta N_{ph}}{A \Delta t}$ = photon flux density (photons per area per time)
-- $c$ = speed of light ($3 \times 10^8$ m/s)
-- $\lambda$ = wavelength (m)
+- $\hat{x}, \hat{y}, \hat{z}$ are unit vectors in x, y, z directions
 
-## Section 5: Wave-Particle Duality for Light
-Light exhibits BOTH wave-like AND particle-like properties:
-- **Wave behavior**: Interference, diffraction (explained by wave theory)
-- **Particle behavior**: Photoelectric effect, Compton scattering (explained by photon model)
+### Divergence
+Measures the magnitude of a source or sink at a given point in a vector field:
+$$\nabla \cdot \vec{A} = \frac{\partial A_x}{\partial x} + \frac{\partial A_y}{\partial y} + \frac{\partial A_z}{\partial z}$$
 
-This is the **wave-particle duality** - light is neither purely a wave nor purely a particle; it exhibits properties of both depending on the experiment.
+- Input: vector → Output: scalar
 
-## Section 6: Black Body Radiation
-All objects emit and absorb radiation. A black body is a perfect emitter/absorber.
+### Curl
+Measures the tendency to rotate about a point in a vector field:
+$$\nabla \times \vec{A} = \begin{vmatrix} \hat{x} & \hat{y} & \hat{z} \\ \frac{\partial}{\partial x} & \frac{\partial}{\partial y} & \frac{\partial}{\partial z} \\ A_x & A_y & A_z \end{vmatrix}$$
 
-Classical theory predicted intensity $I_\lambda \propto 1/\lambda^4$, which failed at short wavelengths (the "ultraviolet catastrophe").
+- Input: vector → Output: vector
 
-Planck's solution: Energy is emitted/absorbed in discrete quanta:
-$$I_\lambda = \frac{2\pi hc^2}{\lambda^5[\exp(\frac{hc}{\lambda kT}) - 1]}$$
+### Scalar Laplacian
+Divergence of the gradient:
+$$\nabla^2 \phi = \frac{\partial^2 \phi}{\partial x^2} + \frac{\partial^2 \phi}{\partial y^2} + \frac{\partial^2 \phi}{\partial z^2}$$
 
-Stefan-Boltzmann law (total radiated power):
-$$P_S = \sigma_S T^4$$
+- Input: scalar → Output: scalar
 
-Where:
-- $\sigma_S = 5.670 \times 10^{-8}$ W/m²·K⁴ (Stefan constant)
+### Vector Laplacian
+$$\nabla^2 \vec{A} = \hat{x}\nabla^2 A_x + \hat{y}\nabla^2 A_y + \hat{z}\nabla^2 A_z$$
 
-Wien's displacement law (peak wavelength):
-$$\lambda_{max}T \approx 2.89 \times 10^{-3} \text{ m·K}$$
+Where each component is a scalar Laplacian. Input: vector → Output: vector
 
-## Section 7: The Electron as a Wave
-Can electrons exhibit wave-like properties? YES.
+## Key Equations Summary
+$$\nabla^2 u - \frac{1}{c^2}\frac{\partial^2}{\partial t^2}u = 0 \quad \text{(wave equation)}$$
 
-**de Broglie's hypothesis**: All particles have wave-like properties:
-$$\lambda = \frac{h}{p} \quad \text{or} \quad p = \frac{h}{\lambda}$$
-
-Experimental confirmation: Electron beams show diffraction and interference patterns (like X-rays).
-
-## Key Equations
-$$E = hf \quad \text{(photon energy)}$$
-$$p = \frac{h}{\lambda} \quad \text{(photon momentum)}$$
-$$K_E = hf - \Phi \quad \text{(photoelectric effect)}$$
-$$I = \Gamma_{ph}hf \quad \text{(light intensity)}$$
-$$\lambda = \frac{h}{p} \quad \text{(de Broglie wavelength)}$$
-$$P_S = \sigma_S T^4 \quad \text{(Stefan-Boltzmann)}$$
-$$\lambda_{max}T \approx 2.89 \times 10^{-3} \text{ m·K} \quad \text{(Wien's law)}$$
-
-## Key Definitions
-- **Photon**: Indivisible unit/particle of light
-- **Work function (Φ)**: Minimum energy needed to eject an electron from a metal
-- **Wave-particle duality**: Light and matter exhibit both wave and particle properties
-- **Black body**: Perfect emitter/absorber of radiation
-- **de Broglie wavelength**: Wavelength associated with a particle
+$$\nabla \phi \quad \text{(gradient: scalar → vector)}$$
+$$\nabla \cdot \vec{A} \quad \text{(divergence: vector → scalar)}$$
+$$\nabla \times \vec{A} \quad \text{(curl: vector → vector)}$$
+$$\nabla^2 \phi \quad \text{(scalar Laplacian: scalar → scalar)}$$
+$$\nabla^2 \vec{A} \quad \text{(vector Laplacian: vector → vector)}$$
