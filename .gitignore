@@ -13,6 +13,9 @@ CourseData/Lecture_Slides/*/Test*.md
 CourseData/Lecture_Slides/*/KeyEquations.md
 CourseData/Lecture_Slides/*/QuickReview.md
 
+# Course lecture slides (proprietary, large PDFs)
+CourseData/Lecture_Slides/
+
 # OS
 .DS_Store
 Thumbs.db

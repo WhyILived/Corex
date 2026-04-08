@@ -1,4 +1,4 @@
-# Final Evaluation Agent - Coverage Check
+# Coverage Evaluation Agent - Content Coverage Check
 
 ## Task
 Verify all lecture slide content is covered in the generated Learn/Test materials.

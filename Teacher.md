@@ -34,24 +34,24 @@ You coordinate the pipeline at key checkpoints. You create the Learn/Test files 
 - Also always create: KeyEquations.md (all equations collected), QuickReview.md (concise summary)
 - Save all files to `/path/to/CourseData/Lecture_Slides/[N]/`
 
-**STEP 4: Final Evaluation - LOOP**
+**STEP 4: Coverage Evaluation - LOOP**
 First check coverage before checking accuracy - we want all content present before verifying correctness.
-1. **Spawn Final Eval Agent** (ONE agent, not multiple):
-   - Give sub-agent: `agents/final_eval_agent.md` as context
+1. **Spawn Coverage Eval Agent** (ONE agent, not multiple):
+   - Give sub-agent: `agents/coverage_eval_agent.md` as context
    - Give sub-agent: lecture slide PDF path, all Learn/Test paths, KeyEquations.md, QuickReview.md
 
 2. **Collect result**: Wait for the agent to complete.
 
 3. **Check result**:
    - If `status = "PASS"`: Move to Step 5
-   - If `status = "NEEDS_REVISION"`: 
+   - If `status = "NEEDS_REVISION"`:
      - Read the agent's feedback
      - Edit the files to fix the issues
-     - Go back to "Spawn Final Eval Agent" (loop until PASS)
+     - Go back to Step 4.1 (loop until PASS)
    - If `status = "FAIL"` (coverage <70%):
      - Read the agent's feedback about what's missing
      - Major content is missing - this may require creating new Learn/Test sections
-     - After fixing, go back to "Spawn Final Eval Agent" (loop until PASS or NEEDS_REVISION)
+     - After fixing, go back to Step 4.1 (loop until PASS or NEEDS_REVISION)
 
 **STEP 5: Anti-Hallucination Check - PARALLEL LOOP**
 Now verify correctness of all content - only after we've confirmed all content is present.
@@ -61,15 +61,15 @@ Now verify correctness of all content - only after we've confirmed all content i
    - Agent for Learn2+Test2
    - Agent for Learn3+Test3 (if exists)
    - etc.
-   
+
 2. **Collect all results**: Wait for all agents to complete.
 
 3. **Check results**:
    - If ALL pairs have `status = "PASS"`: Move to Step 6
-   - If SOME pairs have `status = "NEEDS_REVISION"`: 
+   - If SOME pairs have `status = "NEEDS_REVISION"`:
      - For each pair that failed: edit that specific Learn/Test file to fix the issues
      - Then spawn NEW agents in parallel ONLY for the failed pairs
-     - Go back to "Collect all results" above (repeat loop)
+     - Go back to Step 5.2 (repeat loop)
 
 4. **Repeat loop** until all pairs pass.
 
