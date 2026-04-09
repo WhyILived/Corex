@@ -17,7 +17,7 @@ $$\vec{E}_2(\vec{r}, t) = \vec{E}_0 \cos(\vec{k} \cdot \vec{r}_2 - \omega t + \p
 ### Intensity Pattern
 The combined intensity at point P:
 
-$$I = \frac{1}{2c\epsilon_0}|\vec{E}_1 + \vec{E}_2|^2$$
+$$I = \frac{1}{2}c\epsilon_0|\vec{E}_1 + \vec{E}_2|^2$$
 
 ### Interference Conditions
 - **Constructive interference (bright fringes)**: $S1P - S2P = n\lambda$ where $n = 0, 1, 2, ...$
