@@ -51,8 +51,8 @@ $$\psi_n(x) = \sqrt{\frac{2}{a}}\sin\left(\frac{n\pi x}{a}\right)$$
 The probability density is $|\psi_n|^2 \propto \sin^2(n\pi x/a)$.
 
 **Parity:**
-- For odd $n$ ($n = 1, 3, 5...$): wavefunctions are odd parity (antisymmetric about $a/2$)
-- For even $n$ ($n = 2, 4, 6...$): wavefunctions are even parity (symmetric)
+- For odd $n$ ($n = 1, 3, 5...$): wavefunctions are even parity (antisymmetric about $a/2$)
+- For even $n$ ($n = 2, 4, 6...$): wavefunctions are odd parity (symmetric)
 
 **Nodes:** The number of nodes within the well increases with $n$: $\psi_n$ has $(n-1)$ nodes.
 
