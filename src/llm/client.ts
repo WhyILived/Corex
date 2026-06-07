@@ -38,6 +38,13 @@ export const DEFAULT_MODELS = {
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0;
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
+const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
+
+function defaultBaseUrl(provider: LLMConfig["provider"]): string {
+  if (provider === "ollama") return DEFAULT_OLLAMA_BASE_URL;
+  if (provider === "openai") return DEFAULT_OPENAI_BASE_URL;
+  return "";
+}
 
 type ResolvedLLMConfig = {
   provider: LLMConfig["provider"];
@@ -72,7 +79,7 @@ function resolveConfig(config: LLMConfig): ResolvedLLMConfig {
     model: config.model || DEFAULT_MODELS[config.provider],
     maxTokens: config.maxTokens ?? DEFAULT_MAX_TOKENS,
     temperature: config.temperature ?? DEFAULT_TEMPERATURE,
-    baseUrl: config.baseUrl ?? DEFAULT_OLLAMA_BASE_URL,
+    baseUrl: config.baseUrl ?? defaultBaseUrl(config.provider),
   };
 }
 
@@ -281,7 +288,7 @@ function toOpenAIMessage(message: LLMMessage) {
   return { role: message.role, content };
 }
 
-const openaiAdapter = createOpenAIAdapter(() => "https://api.openai.com/v1", true);
+const openaiAdapter = createOpenAIAdapter((config) => config.baseUrl, true);
 
 const ollamaAdapter = createOpenAIAdapter(
   (config) => `${config.baseUrl.replace(/\/$/, "")}/v1`,
