@@ -1,5 +1,5 @@
 import { paginateForContext } from "../ingest/ingest";
-import type { LLMClient } from "../llm/client";
+import { LLMError, type LLMClient } from "../llm/client";
 import type {
   DocumentPage,
   ExamExtraction,
@@ -13,6 +13,17 @@ import type {
 
 const MAX_VISION_IMAGES_PER_CALL = 10;
 const MAX_EXAM_VISION_PAGES = 15;
+// Pages whose text layer has at least this many characters are extracted from
+// text alone; vision is reserved for pages that are mostly images/diagrams.
+const SPARSE_TEXT_THRESHOLD = 200;
+const EXTRACT_CONCURRENCY = 3;
+const CHUNK_CONCURRENCY = 3;
+// Output budget for extraction calls. Dense inputs (textbooks) produce large
+// JSON; a low cap truncates mid-array and the parse fails.
+const EXTRACTION_MAX_TOKENS = 8192;
+// Chunk size for text extraction. Kept moderate so the JSON the model returns
+// for one chunk stays comfortably inside EXTRACTION_MAX_TOKENS.
+const TEXT_CHUNK_CHAR_BUDGET = 24000;
 
 function stripMarkdownFences(text: string): string {
   const trimmed = text.trim();
@@ -22,6 +33,74 @@ function stripMarkdownFences(text: string): string {
 
 function parseJsonResponse<T>(raw: string): T {
   return JSON.parse(stripMarkdownFences(raw)) as T;
+}
+
+// Recovers complete top-level objects from a truncated JSON array (e.g. when
+// the model hit its output token limit mid-array). Returns null if nothing
+// usable could be recovered.
+function salvageTruncatedArray<T>(raw: string): T[] | null {
+  const start = raw.indexOf("[");
+  if (start === -1) return null;
+
+  const items: T[] = [];
+  let depth = 0;
+  let objectStart = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start + 1; i < raw.length; i++) {
+    const char = raw[i]!;
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+    } else if (char === "{") {
+      if (depth === 0) objectStart = i;
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0 && objectStart !== -1) {
+        try {
+          items.push(JSON.parse(raw.slice(objectStart, i + 1)) as T);
+        } catch {
+          // Skip malformed entries; keep whatever else parses.
+        }
+        objectStart = -1;
+      }
+    }
+  }
+
+  return items.length > 0 ? items : null;
+}
+
+function parseSlideSections(raw: string): SlideSection[] {
+  const stripped = stripMarkdownFences(raw);
+
+  try {
+    return JSON.parse(stripped) as SlideSection[];
+  } catch {
+    const salvaged = salvageTruncatedArray<SlideSection>(stripped);
+    if (salvaged) {
+      console.warn(
+        `[extract] Response JSON was truncated; salvaged ${salvaged.length} section(s)`,
+      );
+      return salvaged;
+    }
+    throw new LLMError(
+      `Invalid JSON in extraction response: ${raw.slice(0, 300)}`,
+      0,
+    );
+  }
 }
 
 function documentText(doc: RawDocument): string {
@@ -194,50 +273,61 @@ Rules:
 - Extract formulas in LaTeX notation exactly as written.`;
 }
 
+function hasRichText(page: DocumentPage): boolean {
+  return (page.textContent?.length ?? 0) >= SPARSE_TEXT_THRESHOLD;
+}
+
+// Text-first extraction: pages with a usable text layer are processed as text
+// (faster and more reliable than OCR-by-vision); vision is only used for pages
+// that are mostly images/diagrams with little selectable text.
 async function extractSlidesChunk(
   pages: DocumentPage[],
   llm: LLMClient,
   chunkIndex: number,
   totalChunks: number,
 ): Promise<SlideSection[]> {
-  const hasImages = pages.some((page) => page.imageData);
+  const textPages = pages.filter(
+    (page) => hasRichText(page) || !page.imageData,
+  );
+  const visionPages = pages.filter(
+    (page) => page.imageData && !hasRichText(page),
+  );
 
-  if (hasImages) {
-    const textContext = pages
-      .map((page) => page.textContent)
-      .filter(Boolean)
-      .join("\n\n");
+  const sections: SlideSection[] = [];
 
-    const imagePages = pages.filter((page) => page.imageData);
-    const sections: SlideSection[] = [];
-
-    for (let i = 0; i < imagePages.length; i += MAX_VISION_IMAGES_PER_CALL) {
-      const batch = imagePages.slice(i, i + MAX_VISION_IMAGES_PER_CALL);
-      const images = batch.map((page) => ({
-        data: page.imageData!,
-        mimeType: page.mimeType,
-      }));
-      const prompt = buildSlidesVisionPrompt(
-        textContext,
-        chunkIndex,
-        totalChunks,
-        batch.map((page) => page.pageNumber),
-      );
-      const raw = await llm.askWithImages(prompt, images);
-      sections.push(...parseJsonResponse<SlideSection[]>(raw));
-    }
-
-    return sections;
-  }
-
-  const text = pages
+  const text = textPages
     .map((page) => page.textContent)
     .filter(Boolean)
     .join("\n\n");
 
-  return llm.askJSON<SlideSection[]>(
-    buildSlidesTextPrompt(text, chunkIndex, totalChunks),
-  );
+  if (text.trim()) {
+    const raw = await llm.ask(
+      buildSlidesTextPrompt(text, chunkIndex, totalChunks),
+    );
+    sections.push(...parseSlideSections(raw));
+  }
+
+  for (let i = 0; i < visionPages.length; i += MAX_VISION_IMAGES_PER_CALL) {
+    const batch = visionPages.slice(i, i + MAX_VISION_IMAGES_PER_CALL);
+    const images = batch.map((page) => ({
+      data: page.imageData!,
+      mimeType: page.mimeType,
+    }));
+    const batchText = batch
+      .map((page) => page.textContent)
+      .filter(Boolean)
+      .join("\n\n");
+    const prompt = buildSlidesVisionPrompt(
+      batchText,
+      chunkIndex,
+      totalChunks,
+      batch.map((page) => page.pageNumber),
+    );
+    const raw = await llm.askWithImages(prompt, images);
+    sections.push(...parseSlideSections(raw));
+  }
+
+  return sections;
 }
 
 export async function extractOutline(
@@ -245,7 +335,9 @@ export async function extractOutline(
   llm: LLMClient,
 ): Promise<OutlineExtraction> {
   const text = documentText(doc);
-  return llm.askJSON<OutlineExtraction>(buildOutlinePrompt(text));
+  return llm
+    .withConfig({ maxTokens: EXTRACTION_MAX_TOKENS })
+    .askJSON<OutlineExtraction>(buildOutlinePrompt(text));
 }
 
 export async function extractSlides(
@@ -253,18 +345,55 @@ export async function extractSlides(
   llm: LLMClient,
   onChunkProgress?: (chunk: number, total: number) => void,
 ): Promise<SlidesExtraction> {
-  const chunks = paginateForContext(doc);
-  const allSections: SlideSection[] = [];
+  const extractor = llm.withConfig({ maxTokens: EXTRACTION_MAX_TOKENS });
+  const chunks = paginateForContext(doc, TEXT_CHUNK_CHAR_BUDGET);
+  const results: SlideSection[][] = new Array(chunks.length);
+  const failures: string[] = [];
+  let done = 0;
+  let nextIndex = 0;
 
-  for (let i = 0; i < chunks.length; i++) {
-    const chunkSections = await extractSlidesChunk(
-      chunks[i]!,
-      llm,
-      i,
-      chunks.length,
+  async function worker(): Promise<void> {
+    while (nextIndex < chunks.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+
+      try {
+        results[index] = await extractSlidesChunk(
+          chunks[index]!,
+          extractor,
+          index,
+          chunks.length,
+        );
+      } catch (error) {
+        // A single bad chunk shouldn't sink the whole document.
+        results[index] = [];
+        const message = error instanceof Error ? error.message : String(error);
+        failures.push(message);
+        console.error(
+          `[extract] Chunk ${index + 1}/${chunks.length} of "${doc.filename}" failed:`,
+          error,
+        );
+      }
+
+      done += 1;
+      onChunkProgress?.(done, chunks.length);
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(CHUNK_CONCURRENCY, Math.max(chunks.length, 1)) },
+      () => worker(),
+    ),
+  );
+
+  const allSections = results.flat();
+
+  if (allSections.length === 0 && chunks.length > 0) {
+    throw new Error(
+      `Could not extract any content from "${doc.filename}"` +
+        (failures[0] ? ` — ${failures[0]}` : ""),
     );
-    allSections.push(...chunkSections);
-    onChunkProgress?.(i + 1, chunks.length);
   }
 
   return {
@@ -281,9 +410,16 @@ export async function extractExam(
   const year = inferExamYear(doc.filename);
   const examType = inferExamType(doc.filename);
   const imagePages = (doc.pages ?? []).filter((page) => page.imageData);
+  // Prefer the text layer when the document has one; fall back to vision for
+  // scanned/image-only exams.
+  const textIsSparse =
+    documentText(doc).length < (doc.pages?.length ?? 1) * SPARSE_TEXT_THRESHOLD;
   const useVision =
-    imagePages.length > 0 && imagePages.length <= MAX_EXAM_VISION_PAGES;
+    imagePages.length > 0 &&
+    imagePages.length <= MAX_EXAM_VISION_PAGES &&
+    textIsSparse;
 
+  const extractor = llm.withConfig({ maxTokens: EXTRACTION_MAX_TOKENS });
   let totalMarks: number | undefined;
   let questions: ExamQuestion[];
 
@@ -297,7 +433,7 @@ export async function extractExam(
       data: page.imageData!,
       mimeType: page.mimeType,
     }));
-    const raw = await llm.askWithImages(prompt, images);
+    const raw = await extractor.askWithImages(prompt, images);
     const parsed = parseJsonResponse<{
       totalMarks: number | null;
       questions: ExamQuestion[];
@@ -306,7 +442,7 @@ export async function extractExam(
     questions = parsed.questions;
   } else {
     const text = documentText(doc);
-    const parsed = await llm.askJSON<{
+    const parsed = await extractor.askJSON<{
       totalMarks: number | null;
       questions: ExamQuestion[];
     }>(buildExamTextPrompt(text, year, examType));
@@ -323,6 +459,31 @@ export async function extractExam(
   };
 }
 
+type DocExtraction =
+  | { kind: "outline"; outline: OutlineExtraction }
+  | { kind: "slides"; slides: SlidesExtraction }
+  | { kind: "exam"; exam: ExamExtraction }
+  | { kind: "none" };
+
+async function extractDocument(
+  doc: RawDocument,
+  llm: LLMClient,
+): Promise<DocExtraction> {
+  switch (doc.type) {
+    case "course_outline":
+      return { kind: "outline", outline: await extractOutline(doc, llm) };
+    case "slides":
+      return { kind: "slides", slides: await extractSlides(doc, llm) };
+    case "past_exam":
+      return { kind: "exam", exam: await extractExam(doc, llm) };
+    // Textbooks and unrecognized files still carry course content — run them
+    // through the content extractor so every uploaded source is analyzed.
+    case "textbook":
+    case "other":
+      return { kind: "slides", slides: await extractSlides(doc, llm) };
+  }
+}
+
 export async function extractAll(
   docs: RawDocument[],
   llm: LLMClient,
@@ -336,45 +497,66 @@ export async function extractAll(
   outline?: OutlineExtraction;
   slides: SlidesExtraction[];
   exams: ExamExtraction[];
+  failures: string[];
 }> {
+  const extractions: (DocExtraction | undefined)[] = new Array(docs.length);
+  const failures: string[] = [];
+  let done = 0;
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < docs.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const doc = docs[index]!;
+
+      try {
+        extractions[index] = await extractDocument(doc, llm);
+      } catch (error) {
+        extractions[index] = { kind: "none" };
+        const message = error instanceof Error ? error.message : String(error);
+        failures.push(`${doc.filename}: ${message}`);
+        console.error(`[extract] Failed to extract "${doc.filename}":`, error);
+      }
+
+      done += 1;
+      onProgress?.(done, docs.length, doc.filename, doc.type);
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(EXTRACT_CONCURRENCY, Math.max(docs.length, 1)) },
+      () => worker(),
+    ),
+  );
+
   const result: {
     outline?: OutlineExtraction;
     slides: SlidesExtraction[];
     exams: ExamExtraction[];
+    failures: string[];
   } = {
     slides: [],
     exams: [],
+    failures,
   };
 
-  for (let i = 0; i < docs.length; i++) {
-    const doc = docs[i]!;
-
-    try {
-      switch (doc.type) {
-        case "course_outline":
-          result.outline = await extractOutline(doc, llm);
-          break;
-        case "slides":
-          result.slides.push(await extractSlides(doc, llm));
-          break;
-        case "past_exam":
-          result.exams.push(await extractExam(doc, llm));
-          break;
-        case "other":
-        case "textbook":
-          console.warn(
-            `[extract] Skipping "${doc.filename}" — type "${doc.type}" has no extractor`,
-          );
-          break;
-      }
-    } catch (error) {
-      console.error(
-        `[extract] Failed to extract "${doc.filename}":`,
-        error,
-      );
+  for (const extraction of extractions) {
+    if (!extraction) continue;
+    switch (extraction.kind) {
+      case "outline":
+        result.outline = extraction.outline;
+        break;
+      case "slides":
+        result.slides.push(extraction.slides);
+        break;
+      case "exam":
+        result.exams.push(extraction.exam);
+        break;
+      case "none":
+        break;
     }
-
-    onProgress?.(i + 1, docs.length, doc.filename, doc.type);
   }
 
   return result;

@@ -324,6 +324,18 @@ function extractGlobalVocabulary(
     .map(({ term, definition }) => ({ term, definition }));
 }
 
+// Pulls a course code like "ECE108" out of a filename such as
+// "ece108-textbook-s2026.pdf" when no course outline was provided.
+function inferCourseCodeFromFilenames(filenames: string[]): string | undefined {
+  for (const filename of filenames) {
+    const match = filename.match(/\b([a-z]{2,5})[\s_-]?(\d{3}[a-z]?)\b/i);
+    if (match) {
+      return `${match[1]!.toUpperCase()}${match[2]!.toUpperCase()}`;
+    }
+  }
+  return undefined;
+}
+
 function buildMeta(
   outline: OutlineExtraction | undefined,
   slides: SlidesExtraction[],
@@ -348,9 +360,11 @@ function buildMeta(
     0,
   );
 
+  const inferredCode = inferCourseCodeFromFilenames(inputFiles);
+
   return {
-    courseCode: outline?.courseCode ?? "UNKNOWN",
-    courseName: outline?.courseName ?? "Unknown Course",
+    courseCode: outline?.courseCode ?? inferredCode ?? "UNKNOWN",
+    courseName: outline?.courseName ?? inferredCode ?? "Untitled Notebook",
     term: outline?.term,
     generatedAt: new Date().toISOString(),
     inputFiles,

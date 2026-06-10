@@ -3,9 +3,10 @@ import {
   mkdir,
   readDir,
   readTextFile,
+  writeFile,
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { appDataDir } from "@tauri-apps/api/path";
 import { ingestFiles } from "../ingest/ingest";
 import { extractAll } from "../extract/extract";
 import { LLMError, type LLMClient } from "../llm/client";
@@ -18,8 +19,10 @@ import type {
   OutlineExtraction,
   PipelineError,
   PipelineState,
+  RawDocument,
   ScopeDocument,
   SlidesExtraction,
+  SourceManifest,
   StageStatus,
 } from "../types";
 
@@ -56,19 +59,90 @@ export interface SessionSummary {
 
 const SESSIONS_DIR = "sessions";
 const EXTRACTIONS_DIR = "extractions";
+const SOURCES_DIR = "sources";
 const STATE_FILE = "pipeline-state.json";
 const SCOPE_FILE = "SCOPE.md";
+const SOURCES_FILE = "sources.json";
+
+// Synchronous path join. Tauri's path.join() is async (it bridges to Rust);
+// since every path here is derived from an already-resolved appDataDir, a local
+// joiner keeps the code synchronous and avoids awaiting on every segment. The
+// Tauri fs plugin normalizes forward slashes on Windows.
+function joinPath(...segments: string[]): string {
+  return segments
+    .map((segment, index) =>
+      index === 0
+        ? segment.replace(/[\\/]+$/, "")
+        : segment.replace(/^[\\/]+|[\\/]+$/g, ""),
+    )
+    .filter((segment) => segment.length > 0)
+    .join("/");
+}
 
 async function getSessionsRoot(): Promise<string> {
-  return join(await appDataDir(), SESSIONS_DIR);
+  return joinPath(await appDataDir(), SESSIONS_DIR);
 }
 
 async function getSessionDir(sessionId: string): Promise<string> {
-  return join(await getSessionsRoot(), sessionId);
+  return joinPath(await getSessionsRoot(), sessionId);
 }
 
 async function getExtractionsDir(sessionDir: string): Promise<string> {
-  return join(sessionDir, EXTRACTIONS_DIR);
+  return joinPath(sessionDir, EXTRACTIONS_DIR);
+}
+
+// Copies the user's original uploads into the session so the Sources panel can
+// preview them later, and writes sources.json mapping each RawDocument to its
+// stored file. docs[i] corresponds to files[i] (ingestFiles preserves order).
+async function persistSources(
+  sessionDir: string,
+  files: File[],
+  docs: RawDocument[],
+): Promise<SourceManifest> {
+  const sourcesDir = joinPath(sessionDir, SOURCES_DIR);
+  await mkdir(sourcesDir, { recursive: true });
+
+  const manifest: SourceManifest = [];
+
+  for (let i = 0; i < docs.length; i++) {
+    const doc = docs[i]!;
+    const file = files[i];
+    if (!file) {
+      continue;
+    }
+
+    // Prefix with the doc id so identically-named uploads can't collide.
+    const storedName = `${doc.id}__${doc.filename}`;
+    const path = joinPath(sourcesDir, storedName);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await writeFile(path, bytes);
+
+    manifest.push({
+      id: doc.id,
+      filename: doc.filename,
+      type: doc.type,
+      mimeType: doc.mimeType,
+      path,
+    });
+  }
+
+  await writeTextFile(
+    joinPath(sessionDir, SOURCES_FILE),
+    JSON.stringify(manifest, null, 2),
+  );
+
+  return manifest;
+}
+
+export async function loadSources(sessionId: string): Promise<SourceManifest> {
+  const sessionDir = await getSessionDir(sessionId);
+  const path = joinPath(sessionDir, SOURCES_FILE);
+
+  if (!(await exists(path))) {
+    return [];
+  }
+
+  return JSON.parse(await readTextFile(path)) as SourceManifest;
 }
 
 function createInitialState(sessionId: string): PipelineState {
@@ -150,7 +224,7 @@ async function writePipelineState(
   sessionDir: string,
   state: PipelineState,
 ): Promise<void> {
-  const statePath = join(sessionDir, STATE_FILE);
+  const statePath = joinPath(sessionDir, STATE_FILE);
   await writeTextFile(statePath, JSON.stringify(state, null, 2));
 }
 
@@ -164,21 +238,21 @@ async function writeExtractions(
 ): Promise<void> {
   if (extractions.outline) {
     await writeTextFile(
-      join(extractionsDir, "outline.json"),
+      joinPath(extractionsDir, "outline.json"),
       JSON.stringify(extractions.outline, null, 2),
     );
   }
 
   for (let i = 0; i < extractions.slides.length; i++) {
     await writeTextFile(
-      join(extractionsDir, indexedFilename("slides", i)),
+      joinPath(extractionsDir, indexedFilename("slides", i)),
       JSON.stringify(extractions.slides[i], null, 2),
     );
   }
 
   for (let i = 0; i < extractions.exams.length; i++) {
     await writeTextFile(
-      join(extractionsDir, indexedFilename("exam", i)),
+      joinPath(extractionsDir, indexedFilename("exam", i)),
       JSON.stringify(extractions.exams[i], null, 2),
     );
   }
@@ -197,21 +271,21 @@ async function readExtractions(extractionsDir: string): Promise<{
   let outline: OutlineExtraction | undefined;
   if (names.includes("outline.json")) {
     outline = JSON.parse(
-      await readTextFile(join(extractionsDir, "outline.json")),
+      await readTextFile(joinPath(extractionsDir, "outline.json")),
     ) as OutlineExtraction;
   }
 
   const slides: SlidesExtraction[] = [];
   for (const name of sortIndexedFiles(names, "slides")) {
     slides.push(
-      JSON.parse(await readTextFile(join(extractionsDir, name))) as SlidesExtraction,
+      JSON.parse(await readTextFile(joinPath(extractionsDir, name))) as SlidesExtraction,
     );
   }
 
   const exams: ExamExtraction[] = [];
   for (const name of sortIndexedFiles(names, "exam")) {
     exams.push(
-      JSON.parse(await readTextFile(join(extractionsDir, name))) as ExamExtraction,
+      JSON.parse(await readTextFile(joinPath(extractionsDir, name))) as ExamExtraction,
     );
   }
 
@@ -222,7 +296,7 @@ async function readOutlineMeta(extractionsDir: string): Promise<{
   courseCode?: string;
   courseName?: string;
 }> {
-  const outlinePath = join(extractionsDir, "outline.json");
+  const outlinePath = joinPath(extractionsDir, "outline.json");
   if (!(await exists(outlinePath))) {
     return {};
   }
@@ -263,8 +337,8 @@ export async function runScopePipeline(
 ): Promise<ScopePipelineResult> {
   const sessionId = input.sessionId ?? Date.now().toString(36);
   const sessionDir = await getSessionDir(sessionId);
-  const statePath = join(sessionDir, STATE_FILE);
-  const scopeMdPath = join(sessionDir, SCOPE_FILE);
+  const statePath = joinPath(sessionDir, STATE_FILE);
+  const scopeMdPath = joinPath(sessionDir, SCOPE_FILE);
 
   await mkdir(sessionDir, { recursive: true });
   const extractionsDir = await ensureSessionDirs(sessionDir);
@@ -276,6 +350,7 @@ export async function runScopePipeline(
   let extractions: Awaited<ReturnType<typeof extractAll>> = {
     slides: [],
     exams: [],
+    failures: [],
   };
   let scopeDocument: ScopeDocument | undefined;
 
@@ -297,6 +372,8 @@ export async function runScopePipeline(
       });
     });
 
+    await persistSources(sessionDir, input.files, docs);
+
     await setStage(sessionDir, state, "ingest", "done");
 
     await setStage(sessionDir, state, "extract", "running");
@@ -316,6 +393,22 @@ export async function runScopePipeline(
       });
     });
 
+    // Surface a real error instead of shipping an empty notebook when nothing
+    // usable came out of the sources.
+    const hasContent =
+      extractions.outline !== undefined ||
+      extractions.slides.some((slide) => slide.sections.length > 0) ||
+      extractions.exams.some((exam) => exam.questions.length > 0);
+
+    if (!hasContent) {
+      const detail = extractions.failures[0]
+        ? ` First error: ${extractions.failures[0]}`
+        : "";
+      throw new Error(
+        `No content could be extracted from the uploaded sources.${detail}`,
+      );
+    }
+
     await writeExtractions(extractionsDir, extractions);
     await setStage(sessionDir, state, "extract", "done");
 
@@ -334,6 +427,12 @@ export async function runScopePipeline(
       input.userPrompt,
       llm,
     );
+
+    if (scopeDocument.sections.length === 0) {
+      throw new Error(
+        "Synthesis produced no sections from the extracted content. Try again, or add more sources.",
+      );
+    }
 
     await setStage(sessionDir, state, "synthesize", "done");
 
@@ -390,7 +489,7 @@ export async function loadExistingScope(
     return null;
   }
 
-  const extractionsDir = join(sessionDir, EXTRACTIONS_DIR);
+  const extractionsDir = joinPath(sessionDir, EXTRACTIONS_DIR);
   if (!(await exists(extractionsDir))) {
     return null;
   }
@@ -420,9 +519,9 @@ export async function listSessions(): Promise<SessionSummary[]> {
     }
 
     const sessionId = entry.name;
-    const sessionDir = join(sessionsRoot, sessionId);
-    const statePath = join(sessionDir, STATE_FILE);
-    const scopeMdPath = join(sessionDir, SCOPE_FILE);
+    const sessionDir = joinPath(sessionsRoot, sessionId);
+    const statePath = joinPath(sessionDir, STATE_FILE);
+    const scopeMdPath = joinPath(sessionDir, SCOPE_FILE);
     const hasState = await exists(statePath);
     const hasScope = await exists(scopeMdPath);
 
@@ -445,7 +544,7 @@ export async function listSessions(): Promise<SessionSummary[]> {
       courseName = scopeMeta.courseName ?? courseName;
       generatedAt = scopeMeta.generatedAt ?? generatedAt;
     } else {
-      const extractionsDir = join(sessionDir, EXTRACTIONS_DIR);
+      const extractionsDir = joinPath(sessionDir, EXTRACTIONS_DIR);
       if (await exists(extractionsDir)) {
         const outlineMeta = await readOutlineMeta(extractionsDir);
         courseCode = outlineMeta.courseCode ?? courseCode;

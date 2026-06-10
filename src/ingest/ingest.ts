@@ -71,13 +71,12 @@ function pageCharEstimate(page: DocumentPage): number {
 async function parsePdf(
   file: File,
 ): Promise<Pick<RawDocument, "textContent" | "pages">> {
-  // pdfjs-dist requires GlobalWorkerOptions.workerSrc to be configured in Vite setup, e.g.:
-  // import { GlobalWorkerOptions } from "pdfjs-dist";
-  // GlobalWorkerOptions.workerSrc = new URL(
-  //   "pdfjs-dist/build/pdf.worker.min.mjs",
-  //   import.meta.url,
-  // ).href;
+  // pdfjs-dist and its worker are both loaded lazily here so they only ship when
+  // a PDF is actually parsed. configurePdfWorker sets GlobalWorkerOptions.workerSrc
+  // (idempotent) using the bundled worker asset URL.
   const pdfjs = await import("pdfjs-dist");
+  const { configurePdfWorker } = await import("../lib/pdf");
+  configurePdfWorker(pdfjs);
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data: buffer }).promise;
 
@@ -104,16 +103,22 @@ async function parsePdf(
     canvas.width = viewport.width;
     canvas.height = viewport.height;
 
+    // JPEG has no alpha channel; fill white so transparent regions don't
+    // render black. JPEG keeps the base64 payload several times smaller than
+    // PNG, which makes vision calls much faster.
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
     await page.render({ canvasContext: context, viewport, canvas }).promise;
 
-    const dataUrl = canvas.toDataURL("image/png");
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
     const imageData = dataUrl.split(",")[1];
 
     pages.push({
       pageNumber,
       textContent: pageText || undefined,
       imageData,
-      mimeType: "image/png",
+      mimeType: "image/jpeg",
     });
 
     if (pageText) {
@@ -146,7 +151,8 @@ async function parsePptx(
   const pages: DocumentPage[] = [];
 
   for (let i = 0; i < slidePaths.length; i++) {
-    const xml = await zip.file(slidePaths[i])!.async("string");
+    const slidePath = slidePaths[i]!;
+    const xml = await zip.file(slidePath)!.async("string");
     const textNodes = [...xml.matchAll(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g)];
     const slideText = textNodes
       .map((match) => match[1] ?? "")

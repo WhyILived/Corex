@@ -4,7 +4,7 @@ import {
   readTextFile,
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { appDataDir } from "@tauri-apps/api/path";
 import type { LLMClient } from "../llm/client";
 import type { ScopeDocument, ScopeSection, SectionDepth } from "../types";
 
@@ -88,6 +88,20 @@ const DEFAULT_CONCURRENCY = 3;
 const MAX_CONCURRENCY = 5;
 const PASS_SCORE_THRESHOLD = 75;
 
+// Synchronous path join. Tauri's path.join() is async; all paths here derive
+// from an already-resolved appDataDir, so a local joiner keeps the code sync.
+// The Tauri fs plugin normalizes forward slashes on Windows.
+function joinPath(...segments: string[]): string {
+  return segments
+    .map((segment, index) =>
+      index === 0
+        ? segment.replace(/[\\/]+$/, "")
+        : segment.replace(/^[\\/]+|[\\/]+$/g, ""),
+    )
+    .filter((segment) => segment.length > 0)
+    .join("/");
+}
+
 const taskGraphWriteQueues = new Map<string, Promise<void>>();
 
 async function withTaskGraphLock<T>(
@@ -116,14 +130,14 @@ async function withTaskGraphLock<T>(
 }
 
 async function getSessionDir(sessionId: string): Promise<string> {
-  return join(await appDataDir(), SESSIONS_DIR, sessionId);
+  return joinPath(await appDataDir(), SESSIONS_DIR, sessionId);
 }
 
 async function getSectionDir(
   sessionId: string,
   sectionId: string,
 ): Promise<string> {
-  return join(await getSessionDir(sessionId), SECTIONS_DIR, sectionId);
+  return joinPath(await getSessionDir(sessionId), SECTIONS_DIR, sectionId);
 }
 
 function clampConcurrency(concurrency: number): number {
@@ -176,7 +190,7 @@ function buildTaskGraph(
 }
 
 async function loadTaskGraph(sessionDir: string): Promise<TaskGraph | null> {
-  const tasksPath = join(sessionDir, TASKS_FILE);
+  const tasksPath = joinPath(sessionDir, TASKS_FILE);
   if (!(await exists(tasksPath))) {
     return null;
   }
@@ -188,7 +202,7 @@ async function writeTaskGraph(
   graph: TaskGraph,
 ): Promise<void> {
   await writeTextFile(
-    join(sessionDir, TASKS_FILE),
+    joinPath(sessionDir, TASKS_FILE),
     JSON.stringify(graph, null, 2),
   );
 }
@@ -498,10 +512,10 @@ export async function runSectionTask(
   doneSections: number,
 ): Promise<void> {
   const sectionDir = await getSectionDir(sessionId, task.sectionId);
-  const contentPath = join(sectionDir, "content.md");
-  const verdictPath = join(sectionDir, "verdict.json");
-  const contentFixedPath = join(sectionDir, "content-fixed.md");
-  const finalPath = join(sectionDir, "final.md");
+  const contentPath = joinPath(sectionDir, "content.md");
+  const verdictPath = joinPath(sectionDir, "verdict.json");
+  const contentFixedPath = joinPath(sectionDir, "content-fixed.md");
+  const finalPath = joinPath(sectionDir, "final.md");
 
   try {
     await updateTaskStatus(
@@ -621,7 +635,7 @@ export async function runOrchestrator(
 
     const rubric = buildRubric(sectionMap.get(task.sectionId)!);
     await writeTextFile(
-      join(sectionDir, "rubric.json"),
+      joinPath(sectionDir, "rubric.json"),
       JSON.stringify(rubric, null, 2),
     );
   }
@@ -677,7 +691,7 @@ export async function runOrchestrator(
 
   const finalPaths: Record<string, string> = {};
   for (const sectionId of completedSections) {
-    finalPaths[sectionId] = join(
+    finalPaths[sectionId] = joinPath(
       await getSectionDir(sessionId, sectionId),
       "final.md",
     );

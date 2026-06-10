@@ -28,14 +28,16 @@ export interface LLMResponse {
   model: string;
 }
 
+export type StreamDeltaCallback = (delta: string) => void;
+
 export const DEFAULT_MODELS = {
   anthropic: "claude-sonnet-4-20250514",
   openai: "gpt-4o",
   gemini: "gemini-1.5-pro",
-  ollama: "gemma3:4b",
+  ollama: "gemma4:e4b",
 } as const;
 
-const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_MAX_TOKENS = 8192;
 const DEFAULT_TEMPERATURE = 0;
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
@@ -69,6 +71,11 @@ export class LLMError extends Error {
 
 interface LLMAdapter {
   complete(config: ResolvedLLMConfig, messages: LLMMessage[]): Promise<LLMResponse>;
+  stream(
+    config: ResolvedLLMConfig,
+    messages: LLMMessage[],
+    onDelta: StreamDeltaCallback,
+  ): Promise<LLMResponse>;
   ping(config: ResolvedLLMConfig): Promise<{ ok: boolean; models: string[] }>;
 }
 
@@ -104,7 +111,41 @@ async function assertOk(response: Response): Promise<void> {
 function stripMarkdownFences(text: string): string {
   const trimmed = text.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i);
-  return fenced ? fenced[1].trim() : trimmed;
+  return fenced?.[1] ? fenced[1].trim() : trimmed;
+}
+
+// Reads a text/event-stream response and invokes onData for each `data:` payload.
+async function readSSE(
+  response: Response,
+  onData: (data: string) => void,
+): Promise<void> {
+  if (!response.body) {
+    throw new LLMError("Streaming response has no body", 0);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    let separator: number;
+    while ((separator = buffer.indexOf("\n\n")) !== -1) {
+      const rawEvent = buffer.slice(0, separator);
+      buffer = buffer.slice(separator + 2);
+
+      for (const line of rawEvent.split("\n")) {
+        const trimmed = line.replace(/\r$/, "");
+        if (trimmed.startsWith("data:")) {
+          onData(trimmed.slice(5).trim());
+        }
+      }
+    }
+  }
 }
 
 function blocksFromImages(
@@ -124,6 +165,16 @@ function blocksFromImages(
 
 // --- Anthropic ---
 
+function anthropicHeaders(config: ResolvedLLMConfig): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "x-api-key": config.apiKey,
+    "anthropic-version": "2023-06-01",
+    // Required for direct (webview/browser) calls to pass CORS.
+    "anthropic-dangerous-direct-browser-access": "true",
+  };
+}
+
 const anthropicAdapter: LLMAdapter = {
   async complete(config, messages) {
     const body = {
@@ -135,11 +186,7 @@ const anthropicAdapter: LLMAdapter = {
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": config.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
+      headers: anthropicHeaders(config),
       body: JSON.stringify(body),
     });
 
@@ -163,6 +210,60 @@ const anthropicAdapter: LLMAdapter = {
       outputTokens: data.usage?.output_tokens ?? 0,
       model: data.model ?? config.model,
     };
+  },
+
+  async stream(config, messages, onDelta) {
+    const body = {
+      model: config.model,
+      max_tokens: config.maxTokens,
+      temperature: config.temperature,
+      stream: true,
+      messages: messages.map(toAnthropicMessage),
+    };
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: anthropicHeaders(config),
+      body: JSON.stringify(body),
+    });
+
+    await assertOk(response);
+
+    let content = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let model = config.model;
+
+    await readSSE(response, (data) => {
+      if (!data || data === "[DONE]") return;
+      let event: {
+        type?: string;
+        message?: { model?: string; usage?: { input_tokens?: number } };
+        delta?: { type?: string; text?: string };
+        usage?: { output_tokens?: number };
+      };
+      try {
+        event = JSON.parse(data);
+      } catch {
+        return;
+      }
+
+      if (event.type === "message_start") {
+        model = event.message?.model ?? model;
+        inputTokens = event.message?.usage?.input_tokens ?? inputTokens;
+      } else if (
+        event.type === "content_block_delta" &&
+        event.delta?.type === "text_delta" &&
+        event.delta.text
+      ) {
+        content += event.delta.text;
+        onDelta(event.delta.text);
+      } else if (event.type === "message_delta") {
+        outputTokens = event.usage?.output_tokens ?? outputTokens;
+      }
+    });
+
+    return { content, inputTokens, outputTokens, model };
   },
 
   async ping() {
@@ -200,14 +301,19 @@ function toAnthropicMessage(message: LLMMessage) {
 // --- OpenAI-compatible (OpenAI + Ollama) ---
 
 function createOpenAIAdapter(getBaseUrl: (config: ResolvedLLMConfig) => string, useAuth: boolean): LLMAdapter {
+  function buildHeaders(config: ResolvedLLMConfig): Record<string, string> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (useAuth) {
+      headers.Authorization = `Bearer ${config.apiKey}`;
+    }
+    return headers;
+  }
+
   return {
     async complete(config, messages) {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (useAuth) {
-        headers.Authorization = `Bearer ${config.apiKey}`;
-      }
+      const headers = buildHeaders(config);
 
       const body = {
         model: config.model,
@@ -236,6 +342,55 @@ function createOpenAIAdapter(getBaseUrl: (config: ResolvedLLMConfig) => string, 
         outputTokens: data.usage?.completion_tokens ?? 0,
         model: data.model ?? config.model,
       };
+    },
+
+    async stream(config, messages, onDelta) {
+      const body = {
+        model: config.model,
+        max_tokens: config.maxTokens,
+        temperature: config.temperature,
+        stream: true,
+        messages: messages.map(toOpenAIMessage),
+      };
+
+      const response = await fetch(`${getBaseUrl(config)}/chat/completions`, {
+        method: "POST",
+        headers: buildHeaders(config),
+        body: JSON.stringify(body),
+      });
+
+      await assertOk(response);
+
+      let content = "";
+      let inputTokens = 0;
+      let outputTokens = 0;
+      let model = config.model;
+
+      await readSSE(response, (data) => {
+        if (!data || data === "[DONE]") return;
+        let chunk: {
+          choices?: { delta?: { content?: string | null } }[];
+          usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+          model?: string;
+        };
+        try {
+          chunk = JSON.parse(data);
+        } catch {
+          return;
+        }
+
+        model = chunk.model ?? model;
+        inputTokens = chunk.usage?.prompt_tokens ?? inputTokens;
+        outputTokens = chunk.usage?.completion_tokens ?? outputTokens;
+
+        const delta = chunk.choices?.[0]?.delta?.content;
+        if (delta) {
+          content += delta;
+          onDelta(delta);
+        }
+      });
+
+      return { content, inputTokens, outputTokens, model };
     },
 
     async ping(config) {
@@ -339,6 +494,63 @@ const geminiAdapter: LLMAdapter = {
     };
   },
 
+  async stream(config, messages, onDelta) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(config.apiKey)}`;
+
+    const body = {
+      contents: messages.map(toGeminiContent),
+      generationConfig: {
+        maxOutputTokens: config.maxTokens,
+        temperature: config.temperature,
+      },
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    await assertOk(response);
+
+    let content = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let model = config.model;
+
+    await readSSE(response, (data) => {
+      if (!data || data === "[DONE]") return;
+      let chunk: {
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
+        usageMetadata?: {
+          promptTokenCount?: number;
+          candidatesTokenCount?: number;
+        };
+        modelVersion?: string;
+      };
+      try {
+        chunk = JSON.parse(data);
+      } catch {
+        return;
+      }
+
+      model = chunk.modelVersion ?? model;
+      inputTokens = chunk.usageMetadata?.promptTokenCount ?? inputTokens;
+      outputTokens = chunk.usageMetadata?.candidatesTokenCount ?? outputTokens;
+
+      const delta =
+        chunk.candidates?.[0]?.content?.parts
+          ?.map((part) => part.text ?? "")
+          .join("") ?? "";
+      if (delta) {
+        content += delta;
+        onDelta(delta);
+      }
+    });
+
+    return { content, inputTokens, outputTokens, model };
+  },
+
   async ping() {
     return { ok: true, models: [] };
   },
@@ -383,6 +595,15 @@ export class LLMClient {
 
   async complete(messages: LLMMessage[]): Promise<LLMResponse> {
     return ADAPTERS[this.config.provider].complete(this.config, messages);
+  }
+
+  // Streams the response, invoking onDelta with each text fragment as it
+  // arrives. Resolves with the full response once the stream ends.
+  async stream(
+    messages: LLMMessage[],
+    onDelta: StreamDeltaCallback,
+  ): Promise<LLMResponse> {
+    return ADAPTERS[this.config.provider].stream(this.config, messages, onDelta);
   }
 
   async ask(prompt: string): Promise<string> {

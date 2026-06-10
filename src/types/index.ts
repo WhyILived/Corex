@@ -30,6 +30,18 @@ export interface DocumentPage {
   mimeType: string;
 }
 
+// --- Sources (original files copied into the session for preview) ---
+
+export interface SourceManifestEntry {
+  id: string;                 // matches RawDocument.id
+  filename: string;
+  type: InputDocumentType;
+  mimeType: string;
+  path: string;               // absolute path to the copied original under sessions/{id}/sources/
+}
+
+export type SourceManifest = SourceManifestEntry[];
+
 // --- Extraction: course outline ---
 
 export interface OutlineExtraction {

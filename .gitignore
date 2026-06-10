@@ -16,6 +16,13 @@ CourseData/Lecture_Slides/*/QuickReview.md
 # Course lecture slides (proprietary, large PDFs)
 CourseData/Lecture_Slides/
 
+# Node / frontend build
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
 # OS
 .DS_Store
 Thumbs.db
