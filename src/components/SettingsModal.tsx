@@ -12,6 +12,7 @@ const PROVIDERS: { value: Provider; label: string }[] = [
   { value: "anthropic", label: "Anthropic" },
   { value: "openai", label: "OpenAI" },
   { value: "gemini", label: "Gemini" },
+  { value: "openrouter", label: "OpenRouter" },
   { value: "ollama", label: "Ollama (local)" },
 ];
 

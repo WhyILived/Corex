@@ -4,16 +4,20 @@ import {
   loadStudyGuide,
   saveNotebookChat,
   saveThread,
+  updateSectionAnalytics,
   type InlineThread,
   type StudyGuideDocument,
   type StudyGuideSection,
   type ThreadMessage,
 } from "../assembler/assembler";
-import { loadSources } from "../scope/pipeline";
+import { deleteSession, loadSources } from "../scope/pipeline";
 import type { SourceManifest } from "../types";
 import type { SelectionAnchor } from "../lib/selection";
 import { isTauriRuntime } from "../lib/env";
+import { sanitizeChatReply, sanitizeMarkdown, stripHeavyAssets } from "../lib/sanitize";
+import { clampChars } from "../lib/text";
 import { LLMClient, type LLMMessage } from "../llm/client";
+import { extractJsonPayload } from "../llm/json";
 import { useSettingsStore } from "./settings";
 
 export type NotebookStatus = "loading" | "ready" | "error";
@@ -38,6 +42,7 @@ interface NotebooksState {
   activeSessionId: string | null;
   openNotebook: (sessionId: string, fallbackTitle?: string) => Promise<void>;
   closeNotebook: (sessionId: string) => void;
+  deleteNotebook: (sessionId: string) => Promise<void>;
   setActive: (sessionId: string) => void;
   setActiveSection: (sessionId: string, sectionId: string) => void;
   selectSource: (sessionId: string, sourceId: string | undefined) => void;
@@ -79,58 +84,6 @@ function findThread(
   return undefined;
 }
 
-// Replace the content of one chat message inside a tab, returning new tabs.
-function patchChatMessage(
-  tabs: NotebookTab[],
-  sessionId: string,
-  messageId: string,
-  content: string,
-): NotebookTab[] {
-  return tabs.map((tab) =>
-    tab.sessionId === sessionId
-      ? {
-          ...tab,
-          chatMessages: tab.chatMessages.map((message) =>
-            message.id === messageId ? { ...message, content } : message,
-          ),
-        }
-      : tab,
-  );
-}
-
-// Replace the content of one thread message, returning new tabs.
-function patchThreadMessage(
-  tabs: NotebookTab[],
-  sessionId: string,
-  threadId: string,
-  messageId: string,
-  content: string,
-): NotebookTab[] {
-  return tabs.map((tab) => {
-    if (tab.sessionId !== sessionId || !tab.doc) return tab;
-    const sections = tab.doc.sections.map((section) =>
-      section.threads.some((t) => t.id === threadId)
-        ? {
-            ...section,
-            threads: section.threads.map((t) =>
-              t.id === threadId
-                ? {
-                    ...t,
-                    messages: t.messages.map((message) =>
-                      message.id === messageId
-                        ? { ...message, content }
-                        : message,
-                    ),
-                  }
-                : t,
-            ),
-          }
-        : section,
-    );
-    return { ...tab, doc: { ...tab.doc, sections } };
-  });
-}
-
 // Append a message to one thread inside a tab, returning new tabs.
 function appendMessage(
   tabs: NotebookTab[],
@@ -156,16 +109,45 @@ function appendMessage(
   });
 }
 
-// Forked-thread chat is grounded in the highlighted quote + the full section.
-// The grounding context is folded into the first user turn so multi-turn history
-// maps cleanly onto provider message roles.
-function buildChatMessages(
-  messages: ThreadMessage[],
-  section: StudyGuideSection,
-  quote: string,
-): LLMMessage[] {
-  const context = [
-    "You are a study assistant helping a student understand a specific passage from their study guide.",
+// Shared assistant behaviour, kept in the SYSTEM prompt. We force the model
+// into provider-level JSON mode (AskOptions.json) and ask for a {"reply": ...}
+// object: the decoder is constrained to emit JSON, so chain-of-thought can't
+// leak around the answer the way it does with free-form text — no fragile
+// output-scrubbing required. The reply field is extracted with the client's
+// JSON parser (which also repairs LaTeX backslashes).
+const CHAT_BEHAVIOUR = [
+  "Respond naturally and conversationally, like a helpful tutor.",
+  "For greetings, thanks, or small talk, reply warmly and briefly and invite a question about the material — never refuse these.",
+  "For questions about the course material, answer using the provided study guide; if a factual question genuinely isn't covered, say so rather than inventing facts.",
+  "Use Markdown and LaTeX ($...$) where helpful.",
+  'Respond with a SINGLE JSON object and nothing else, of exactly the form {"reply": "<your full reply to the student>"}. Put your entire answer (Markdown allowed) in the "reply" string. Do not add any other keys, prose, planning, or commentary outside the JSON.',
+];
+
+// Parses the model's JSON reply, salvaging with the heuristic scrub only if the
+// model ignored the JSON contract (e.g. a provider without enforced JSON mode).
+function extractReply(raw: string): string {
+  const parsed = extractJsonPayload<{ reply?: unknown }>(raw, "object");
+  if (parsed && typeof parsed.reply === "string" && parsed.reply.trim()) {
+    return parsed.reply.trim();
+  }
+  return sanitizeChatReply(raw);
+}
+
+// Maps stored chat history straight onto provider message roles. All grounding
+// lives in the system prompt, so each turn is just its own content.
+function toLLMMessages(messages: ThreadMessage[]): LLMMessage[] {
+  return messages.map((message) => ({
+    role: message.role,
+    content: message.content,
+  }));
+}
+
+// System prompt for forked-thread chat: grounded in the highlighted quote + the
+// full section.
+function threadChatSystem(section: StudyGuideSection, quote: string): string {
+  return [
+    "You are a friendly study assistant helping a student understand a specific passage from their study guide.",
+    ...CHAT_BEHAVIOUR,
     "",
     `Section: "${section.title}"`,
     "",
@@ -176,50 +158,39 @@ function buildChatMessages(
     "",
     "Full section content for context:",
     '"""',
-    section.contentMd,
+    clampChars(
+      stripHeavyAssets(sanitizeMarkdown(section.contentMd)),
+      60000,
+      "thread context",
+    ),
     '"""',
-    "",
-    "Answer the student's questions about the highlighted passage concisely and accurately. Use Markdown and LaTeX ($...$) where helpful.",
   ].join("\n");
-
-  return messages.map((message, index) =>
-    index === 0 && message.role === "user"
-      ? {
-          role: "user",
-          content: `${context}\n\n---\n\nQuestion: ${message.content}`,
-        }
-      : { role: message.role, content: message.content },
-  );
 }
 
-// Notebook-wide chat grounds answers in every section's content. The grounding
-// is folded into the first user turn so history maps onto provider roles.
-function buildNotebookChatMessages(
-  messages: ThreadMessage[],
-  doc: StudyGuideDocument,
-): LLMMessage[] {
-  const body = doc.sections
-    .map((section) => `## ${section.title}\n\n${section.contentMd}`)
-    .join("\n\n");
+// System prompt for notebook-wide chat: grounded in every section's content.
+function notebookChatSystem(doc: StudyGuideDocument): string {
+  // Cap the grounding so a large guide can't push the chat request past the
+  // model's context window.
+  const body = clampChars(
+    doc.sections
+      .map(
+        (section) =>
+          `## ${section.title}\n\n${stripHeavyAssets(sanitizeMarkdown(section.contentMd))}`,
+      )
+      .join("\n\n"),
+    120000,
+    "notebook chat context",
+  );
 
-  const context = [
-    `You are a study assistant for the course "${doc.meta.courseName || doc.meta.courseCode}".`,
-    "Answer the student's questions using the study guide below. If something is not covered, say so rather than inventing facts.",
-    "Use Markdown and LaTeX ($...$) where helpful, and cite the relevant section titles when useful.",
+  return [
+    `You are a friendly study assistant for the course "${doc.meta.courseName || doc.meta.courseCode}".`,
+    ...CHAT_BEHAVIOUR,
+    "Cite the relevant section titles when useful.",
     "",
     "=== STUDY GUIDE ===",
     body,
     "=== END STUDY GUIDE ===",
   ].join("\n");
-
-  return messages.map((message, index) =>
-    index === 0 && message.role === "user"
-      ? {
-          role: "user",
-          content: `${context}\n\n---\n\nQuestion: ${message.content}`,
-        }
-      : { role: message.role, content: message.content },
-  );
 }
 
 export const useNotebooksStore = create<NotebooksState>((set, get) => ({
@@ -293,12 +264,57 @@ export const useNotebooksStore = create<NotebooksState>((set, get) => ({
     });
   },
 
+  deleteNotebook: async (sessionId) => {
+    // Close any open tab first so the UI doesn't hold a now-deleted notebook,
+    // then remove every file the session wrote (sources, drafts, guide, chat).
+    get().closeNotebook(sessionId);
+    if (isTauriRuntime()) {
+      await deleteSession(sessionId);
+    }
+  },
+
   setActive: (sessionId) => set({ activeSessionId: sessionId }),
 
-  setActiveSection: (sessionId, sectionId) =>
+  setActiveSection: (sessionId, sectionId) => {
+    const tab = get().tabs.find((t) => t.sessionId === sessionId);
+    const isNewVisit = tab?.activeSectionId !== sectionId;
+    const visitedAt = new Date().toISOString();
+
     set((state) => ({
-      tabs: patchTab(state.tabs, sessionId, { activeSectionId: sectionId }),
-    })),
+      tabs: state.tabs.map((t) => {
+        if (t.sessionId !== sessionId) return t;
+        if (!isNewVisit || !t.doc) {
+          return { ...t, activeSectionId: sectionId };
+        }
+        const sections = t.doc.sections.map((section) =>
+          section.id === sectionId
+            ? {
+                ...section,
+                analytics: {
+                  ...section.analytics,
+                  visits: section.analytics.visits + 1,
+                  lastVisitedAt: visitedAt,
+                },
+              }
+            : section,
+        );
+        return {
+          ...t,
+          activeSectionId: sectionId,
+          doc: { ...t.doc, sections },
+        };
+      }),
+    }));
+
+    if (isNewVisit && tab?.doc && isTauriRuntime()) {
+      void updateSectionAnalytics(sessionId, sectionId, {
+        visits: 1,
+        lastVisitedAt: visitedAt,
+      }).catch((error) =>
+        console.warn("[notebooks] analytics update failed", error),
+      );
+    }
+  },
 
   selectSource: (sessionId, sourceId) =>
     set((state) => ({
@@ -343,42 +359,26 @@ export const useNotebooksStore = create<NotebooksState>((set, get) => ({
     await persist(history);
 
     const client = new LLMClient(config);
-    const assistantId = crypto.randomUUID();
-    let streamed = "";
-    let started = false;
 
     try {
-      const response = await client.stream(
-        buildNotebookChatMessages(history, doc),
-        (delta) => {
-          streamed += delta;
-          if (!started) {
-            started = true;
-            const assistantMessage: ThreadMessage = {
-              id: assistantId,
-              role: "assistant",
-              content: streamed,
-              createdAt: new Date().toISOString(),
-            };
-            set((state) => ({
-              tabs: patchTab(state.tabs, sessionId, {
-                chatMessages: [...history, assistantMessage],
-              }),
-            }));
-            return;
-          }
-          set((state) => ({
-            tabs: patchChatMessage(state.tabs, sessionId, assistantId, streamed),
-          }));
-        },
-      );
+      // Non-streamed JSON call: the reply is constrained to a JSON field so
+      // reasoning can't leak around it. The chat UI shows a typing indicator
+      // (waitingForFirstToken) until this assistant message is appended.
+      const response = await client.complete(toLLMMessages(history), {
+        system: notebookChatSystem(doc),
+        json: true,
+      });
 
       const assistantMessage: ThreadMessage = {
-        id: assistantId,
+        id: crypto.randomUUID(),
         role: "assistant",
-        content: response.content || streamed,
+        content: extractReply(response.content),
         createdAt: new Date().toISOString(),
       };
+
+      if (!assistantMessage.content.trim()) {
+        throw new Error("The model returned an empty response.");
+      }
 
       const next = [...history, assistantMessage];
       set((state) => ({
@@ -386,10 +386,13 @@ export const useNotebooksStore = create<NotebooksState>((set, get) => ({
       }));
       await persist(next);
     } catch (error) {
-      // Drop the partial assistant message so a failed send can be retried.
+      // Drop the failed user turn so a retry doesn't stack unanswered messages
+      // or break providers that require strictly alternating user/assistant
+      // roles.
       set((state) => ({
-        tabs: patchTab(state.tabs, sessionId, { chatMessages: history }),
+        tabs: patchTab(state.tabs, sessionId, { chatMessages: tab.chatMessages }),
       }));
+      await persist(tab.chatMessages);
       throw error;
     }
   },
@@ -531,64 +534,53 @@ export const useNotebooksStore = create<NotebooksState>((set, get) => ({
     await persist({ ...thread, messages: history });
 
     const client = new LLMClient(config);
-    const assistantId = crypto.randomUUID();
-    let streamed = "";
-    let started = false;
 
-    const response = await client.stream(
-      buildChatMessages(history, section, thread.anchorQuote),
-      (delta) => {
-        streamed += delta;
-        if (!started) {
-          started = true;
-          set((state) => ({
-            tabs: appendMessage(state.tabs, sessionId, threadId, {
-              id: assistantId,
-              role: "assistant",
-              content: streamed,
-              createdAt: new Date().toISOString(),
-            }),
-          }));
-          return;
-        }
-        set((state) => ({
-          tabs: patchThreadMessage(
-            state.tabs,
-            sessionId,
-            threadId,
-            assistantId,
-            streamed,
-          ),
-        }));
-      },
-    );
+    try {
+      const response = await client.complete(toLLMMessages(history), {
+        system: threadChatSystem(section, thread.anchorQuote),
+        json: true,
+      });
 
-    const assistantMessage: ThreadMessage = {
-      id: assistantId,
-      role: "assistant",
-      content: response.content || streamed,
-      createdAt: new Date().toISOString(),
-    };
+      const assistantMessage: ThreadMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: extractReply(response.content),
+        createdAt: new Date().toISOString(),
+      };
 
-    if (started) {
-      set((state) => ({
-        tabs: patchThreadMessage(
-          state.tabs,
-          sessionId,
-          threadId,
-          assistantId,
-          assistantMessage.content,
-        ),
-      }));
-    } else {
+      if (!assistantMessage.content.trim()) {
+        throw new Error("The model returned an empty response.");
+      }
+
       set((state) => ({
         tabs: appendMessage(state.tabs, sessionId, threadId, assistantMessage),
       }));
-    }
 
-    await persist({
-      ...thread,
-      messages: [...history, assistantMessage],
-    });
+      await persist({
+        ...thread,
+        messages: [...history, assistantMessage],
+      });
+    } catch (error) {
+      // Revert to the thread's pre-send messages so a failed turn isn't left
+      // dangling (which would stack consecutive user messages on retry).
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.sessionId !== sessionId || !tab.doc) return tab;
+          const sections = tab.doc.sections.map((sec) =>
+            sec.threads.some((t) => t.id === threadId)
+              ? {
+                  ...sec,
+                  threads: sec.threads.map((t) =>
+                    t.id === threadId ? { ...t, messages: thread.messages } : t,
+                  ),
+                }
+              : sec,
+          );
+          return { ...tab, doc: { ...tab.doc, sections } };
+        }),
+      }));
+      await persist({ ...thread, messages: thread.messages });
+      throw error;
+    }
   },
 }));

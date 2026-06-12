@@ -3,13 +3,19 @@ import {
   mkdir,
   readDir,
   readTextFile,
+  remove,
   writeFile,
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
 import { ingestFiles } from "../ingest/ingest";
-import { extractAll } from "../extract/extract";
-import { LLMError, type LLMClient } from "../llm/client";
+import {
+  extractAll,
+  type DocExtraction,
+  type ExtractionCache,
+} from "../extract/extract";
+import { AbortError, LLMError, type LLMClient } from "../llm/client";
+import { joinPath } from "../lib/paths";
 import {
   serializeScopeToMarkdown,
   synthesizeScope,
@@ -46,6 +52,7 @@ export interface ScopePipelineResult {
   scopeDocument: ScopeDocument;
   scopeMdPath: string;
   statePath: string;
+  rawDocs: RawDocument[];
 }
 
 export interface SessionSummary {
@@ -64,19 +71,8 @@ const STATE_FILE = "pipeline-state.json";
 const SCOPE_FILE = "SCOPE.md";
 const SOURCES_FILE = "sources.json";
 
-// Synchronous path join. Tauri's path.join() is async (it bridges to Rust);
-// since every path here is derived from an already-resolved appDataDir, a local
-// joiner keeps the code synchronous and avoids awaiting on every segment. The
-// Tauri fs plugin normalizes forward slashes on Windows.
-function joinPath(...segments: string[]): string {
-  return segments
-    .map((segment, index) =>
-      index === 0
-        ? segment.replace(/[\\/]+$/, "")
-        : segment.replace(/^[\\/]+|[\\/]+$/g, ""),
-    )
-    .filter((segment) => segment.length > 0)
-    .join("/");
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new AbortError();
 }
 
 async function getSessionsRoot(): Promise<string> {
@@ -220,6 +216,54 @@ async function ensureSessionDirs(sessionDir: string): Promise<string> {
   return extractionsDir;
 }
 
+function sanitizeCacheName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
+
+// Filesystem-backed extraction cache so retrying a dead run in the same
+// session skips completed documents/chunks. Keyed by filename (doc ids are
+// regenerated every run) and, for chunks, the chunk count — so a re-chunked
+// document misses cleanly. All I/O errors degrade to cache misses.
+function createExtractionCache(extractionsDir: string): ExtractionCache {
+  const cacheDir = joinPath(extractionsDir, "cache");
+  const ready = mkdir(cacheDir, { recursive: true }).catch(() => undefined);
+
+  async function readJson<T>(path: string): Promise<T | null> {
+    try {
+      if (!(await exists(path))) return null;
+      return JSON.parse(await readTextFile(path)) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  async function writeJson(path: string, value: unknown): Promise<void> {
+    try {
+      await ready;
+      await writeTextFile(path, JSON.stringify(value));
+    } catch (error) {
+      console.warn(`[pipeline] failed to write extraction cache ${path}`, error);
+    }
+  }
+
+  const docPath = (filename: string) =>
+    joinPath(cacheDir, `doc-${sanitizeCacheName(filename)}.json`);
+  const chunkPath = (filename: string, index: number, total: number) =>
+    joinPath(
+      cacheDir,
+      `chunk-${sanitizeCacheName(filename)}-${index}of${total}.json`,
+    );
+
+  return {
+    loadDoc: (doc) => readJson<DocExtraction>(docPath(doc.filename)),
+    saveDoc: (doc, extraction) => writeJson(docPath(doc.filename), extraction),
+    loadChunk: (doc, index, total) =>
+      readJson(chunkPath(doc.filename, index, total)),
+    saveChunk: (doc, index, total, sections) =>
+      writeJson(chunkPath(doc.filename, index, total), sections),
+  };
+}
+
 async function writePipelineState(
   sessionDir: string,
   state: PipelineState,
@@ -334,6 +378,7 @@ export async function runScopePipeline(
   input: ScopePipelineInput,
   llm: LLMClient,
   onProgress: ProgressCallback,
+  signal?: AbortSignal,
 ): Promise<ScopePipelineResult> {
   const sessionId = input.sessionId ?? Date.now().toString(36);
   const sessionDir = await getSessionDir(sessionId);
@@ -355,6 +400,7 @@ export async function runScopePipeline(
   let scopeDocument: ScopeDocument | undefined;
 
   try {
+    throwIfAborted(signal);
     await setStage(sessionDir, state, "ingest", "running");
     onProgress({
       stage: "ingest",
@@ -376,6 +422,7 @@ export async function runScopePipeline(
 
     await setStage(sessionDir, state, "ingest", "done");
 
+    throwIfAborted(signal);
     await setStage(sessionDir, state, "extract", "running");
     onProgress({
       stage: "extract",
@@ -384,14 +431,35 @@ export async function runScopePipeline(
       total: docs.length,
     });
 
-    extractions = await extractAll(docs, llm, (done, total, filename) => {
+    const extractionCache = createExtractionCache(extractionsDir);
+
+    extractions = await extractAll(docs, llm, (update) => {
+      if (update.status === "extracted") {
+        onProgress({
+          stage: "extract",
+          message: `Extracted ${update.filename}`,
+          done: update.done,
+          total: update.total,
+        });
+        return;
+      }
+
+      // Chunk-level progress: long documents are split into multiple LLM
+      // calls, each of which can take minutes on a local model. Surface a
+      // fractional `done` so the bar moves within a single document.
+      const chunksTotal = Math.max(update.chunksTotal ?? 1, 1);
+      const chunksDone = update.chunksDone ?? 0;
+      const part = Math.min(chunksDone + 1, chunksTotal);
       onProgress({
         stage: "extract",
-        message: `Extracted ${filename}`,
-        done,
-        total,
+        message:
+          chunksTotal > 1
+            ? `Extracting ${update.filename} — part ${part} of ${chunksTotal}…`
+            : `Extracting ${update.filename}…`,
+        done: Math.min(update.done + chunksDone / chunksTotal, update.total),
+        total: update.total,
       });
-    });
+    }, extractionCache);
 
     // Surface a real error instead of shipping an empty notebook when nothing
     // usable came out of the sources.
@@ -412,6 +480,7 @@ export async function runScopePipeline(
     await writeExtractions(extractionsDir, extractions);
     await setStage(sessionDir, state, "extract", "done");
 
+    throwIfAborted(signal);
     await setStage(sessionDir, state, "synthesize", "running");
     onProgress({
       stage: "synthesize",
@@ -459,6 +528,7 @@ export async function runScopePipeline(
       scopeDocument,
       scopeMdPath,
       statePath,
+      rawDocs: docs,
     };
   } catch (error) {
     let failedStage = (
@@ -476,6 +546,18 @@ export async function runScopePipeline(
     }
 
     throw error;
+  }
+}
+
+// Deletes a session's entire on-disk footprint: copied source files, extraction
+// cache, per-section drafts/verdicts, figures, the assembled guide, and chat.
+// Used both for cancellation cleanup (remove a partial run) and for deleting a
+// notebook from the UI. Safe to call on a non-existent session.
+export async function deleteSession(sessionId: string): Promise<void> {
+  if (!sessionId) return;
+  const sessionDir = await getSessionDir(sessionId);
+  if (await exists(sessionDir)) {
+    await remove(sessionDir, { recursive: true });
   }
 }
 

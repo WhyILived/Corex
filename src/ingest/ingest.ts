@@ -18,6 +18,10 @@ const MIME_MAP: Record<string, string> = {
 const SLIDE_SEPARATOR = "\n\n---\n\n";
 const IMAGE_CHAR_ESTIMATE = 2000;
 const DEFAULT_CHAR_BUDGET = 60000;
+// Cap for the longest side of rendered PDF pages. Vision-encoder prefill cost
+// scales with pixel count; ~1024px is plenty for slide/textbook OCR and
+// roughly halves local vision time versus a fixed 1.5x render.
+const MAX_RENDER_DIMENSION = 1024;
 
 const DOCUMENT_TYPE_PATTERNS: {
   type: InputDocumentType;
@@ -72,8 +76,8 @@ async function parsePdf(
   file: File,
 ): Promise<Pick<RawDocument, "textContent" | "pages">> {
   // pdfjs-dist and its worker are both loaded lazily here so they only ship when
-  // a PDF is actually parsed. configurePdfWorker sets GlobalWorkerOptions.workerSrc
-  // (idempotent) using the bundled worker asset URL.
+  // a PDF is actually parsed. configurePdfWorker sets up the Tauri webview
+  // runtime (ReadableStream polyfill + main-thread worker) and workerSrc.
   const pdfjs = await import("pdfjs-dist");
   const { configurePdfWorker } = await import("../lib/pdf");
   configurePdfWorker(pdfjs);
@@ -92,7 +96,12 @@ async function parsePdf(
       .join(" ")
       .trim();
 
-    const viewport = page.getViewport({ scale: 1.5 });
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = Math.min(
+      1.5,
+      MAX_RENDER_DIMENSION / Math.max(baseViewport.width, baseViewport.height),
+    );
+    const viewport = page.getViewport({ scale });
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
 

@@ -1,27 +1,49 @@
 import { useMemo, useRef } from "react";
-import type { StudyGuideSection } from "../assembler/assembler";
+import {
+  parseContentNodes,
+  type ContentNode,
+  type StudyGuideSection,
+} from "../assembler/assembler";
 import { useNotebooksStore, type NotebookTab } from "../store/notebooks";
+import { sanitizeMarkdown } from "../lib/sanitize";
 import { GuideNode, type ThreadHighlight } from "./guide/GuideNode";
 import { ForkBubble } from "./ForkBubble";
 
 function SectionView({
   section,
+  nodes,
   highlightsByNode,
   activeThreadId,
   onHighlightClick,
 }: {
   section: StudyGuideSection;
+  nodes: ContentNode[];
   highlightsByNode: Map<string, ThreadHighlight[]>;
   activeThreadId?: string;
   onHighlightClick: (threadId: string) => void;
 }) {
+  const threadCount = section.threads.length;
+
   return (
     <section id={`section-${section.id}`} className="guide-section">
       <header className="guide-section-header">
-        <h2>{section.title}</h2>
-        <span className="guide-section-meta">
-          {section.depth} · {section.weightPercent}%
-        </span>
+        <h2 className="guide-section-title">{section.title}</h2>
+        <div className="guide-section-meta">
+          <span className={`depth-badge depth-${section.depth}`}>
+            {section.depth}
+          </span>
+          {section.weekOrUnit && <span>{section.weekOrUnit}</span>}
+          <span className="meta-dot">·</span>
+          <span>{Math.round(section.weightPercent)}% of exam marks</span>
+          {threadCount > 0 && (
+            <>
+              <span className="meta-dot">·</span>
+              <span>
+                {threadCount} thread{threadCount === 1 ? "" : "s"}
+              </span>
+            </>
+          )}
+        </div>
       </header>
 
       {section.warnings.map((warning, index) => (
@@ -31,10 +53,10 @@ function SectionView({
       ))}
 
       <div className="guide-section-body">
-        {section.nodes.length === 0 ? (
+        {nodes.length === 0 ? (
           <p className="muted">No content generated for this section.</p>
         ) : (
-          section.nodes.map((node) => (
+          nodes.map((node) => (
             <GuideNode
               key={node.id}
               node={node}
@@ -60,21 +82,37 @@ export function MainPane({ tab }: MainPaneProps) {
 
   const sections = tab.doc?.sections ?? [];
 
-  const nodeRaw = useMemo(() => {
-    const map = new Map<string, string>();
+  // Re-parse content live so already-assembled (old) notebooks pick up parser
+  // improvements (tables, horizontal rules, italics, nested lists) without
+  // needing to regenerate. parseContentNodes is deterministic and uses the same
+  // id scheme used at assemble time, so fork anchors stay aligned for unchanged
+  // structure.
+  const nodesBySection = useMemo(() => {
+    const map = new Map<string, ContentNode[]>();
     for (const section of sections) {
-      for (const node of section.nodes) map.set(node.id, node.raw);
+      map.set(
+        section.id,
+        parseContentNodes(section.id, sanitizeMarkdown(section.contentMd)),
+      );
     }
     return map;
   }, [sections]);
 
-  const nodeSection = useMemo(() => {
+  const nodeRaw = useMemo(() => {
     const map = new Map<string, string>();
-    for (const section of sections) {
-      for (const node of section.nodes) map.set(node.id, section.id);
+    for (const nodes of nodesBySection.values()) {
+      for (const node of nodes) map.set(node.id, node.raw);
     }
     return map;
-  }, [sections]);
+  }, [nodesBySection]);
+
+  const nodeSection = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [sectionId, nodes] of nodesBySection) {
+      for (const node of nodes) map.set(node.id, sectionId);
+    }
+    return map;
+  }, [nodesBySection]);
 
   const highlightsByNode = useMemo(() => {
     const map = new Map<string, ThreadHighlight[]>();
@@ -102,6 +140,7 @@ export function MainPane({ tab }: MainPaneProps) {
           <SectionView
             key={section.id}
             section={section}
+            nodes={nodesBySection.get(section.id) ?? []}
             highlightsByNode={highlightsByNode}
             activeThreadId={tab.activeThreadId}
             onHighlightClick={(threadId) =>

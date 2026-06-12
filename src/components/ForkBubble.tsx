@@ -1,5 +1,6 @@
 import { useEffect, useState, type RefObject } from "react";
 import { resolveSelectionAnchor, type SelectionAnchor } from "../lib/selection";
+import { GitBranchIcon } from "./icons";
 
 interface ForkBubbleProps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -67,7 +68,7 @@ export function ForkBubble({
           setPos(null);
         }}
       >
-        {"\u270e"} Fork
+        <GitBranchIcon size={12} /> Fork
       </button>
     </div>
   );

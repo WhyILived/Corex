@@ -6,6 +6,7 @@ import { NotebookPage } from "./components/NotebookPage";
 import { SessionPicker } from "./components/SessionPicker";
 import { SettingsModal } from "./components/SettingsModal";
 import { GenerateModal } from "./components/GenerateModal";
+import { GenerationIndicator } from "./components/GenerationIndicator";
 
 export function App() {
   const resolved = useThemeStore((state) => state.resolved);
@@ -66,6 +67,8 @@ export function App() {
       {generateOpen && (
         <GenerateModal onClose={() => setGenerateOpen(false)} />
       )}
+
+      <GenerationIndicator />
     </div>
   );
 }

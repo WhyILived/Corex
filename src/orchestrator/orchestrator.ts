@@ -1,3 +1,10 @@
+// The orchestrator. It is deliberately content-blind: it never reads, writes,
+// or judges study material. Its only jobs are to (1) plan the work (one task per
+// section, ordered by dependencies), (2) spawn subagents — generate, then verify
+// against the sources of truth, then fix-and-reverify in a loop until the
+// verifier passes or the round budget is spent — and (3) persist task state so a
+// crashed/cancelled run can resume. All content reasoning lives in subagents.ts.
+
 import {
   exists,
   mkdir,
@@ -5,8 +12,17 @@ import {
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
-import type { LLMClient } from "../llm/client";
-import type { ScopeDocument, ScopeSection, SectionDepth } from "../types";
+import { AbortError, type LLMClient } from "../llm/client";
+import { joinPath } from "../lib/paths";
+import {
+  buildGroundTruth,
+  buildRubric,
+  fixSection,
+  generateSection,
+  verifySection,
+  type Verdict,
+} from "./subagents";
+import type { ScopeDocument, ScopeSection } from "../types";
 
 type TaskStatus =
   | "pending"
@@ -21,7 +37,6 @@ interface SectionTask {
   sectionTitle: string;
   status: TaskStatus;
   attempts: number;
-  maxAttempts: number;
   error?: string;
   completedAt?: string;
 }
@@ -33,34 +48,6 @@ interface TaskGraph {
   concurrency: number;
 }
 
-interface Verdict {
-  pass: boolean;
-  score: number;
-  failures: VerdictFailure[];
-  suggestions: string[];
-}
-
-interface VerdictFailure {
-  type:
-    | "missing_concept"
-    | "missing_formula"
-    | "inaccurate"
-    | "insufficient_depth"
-    | "missing_examples";
-  detail: string;
-  requiredItem?: string;
-}
-
-interface SectionRubric {
-  sectionId: string;
-  sectionTitle: string;
-  requiredConcepts: string[];
-  requiredFormulas: string[];
-  requiredTerms: string[];
-  minimumExamples: number;
-  depth: SectionDepth;
-}
-
 export interface OrchestratorUpdate {
   sectionId: string;
   sectionTitle: string;
@@ -70,9 +57,7 @@ export interface OrchestratorUpdate {
   doneSections: number;
 }
 
-export type OrchestratorProgressCallback = (
-  update: OrchestratorUpdate,
-) => void;
+export type OrchestratorProgressCallback = (update: OrchestratorUpdate) => void;
 
 export interface OrchestratorResult {
   sessionId: string;
@@ -86,24 +71,14 @@ const SECTIONS_DIR = "sections";
 const TASKS_FILE = "tasks.json";
 const DEFAULT_CONCURRENCY = 3;
 const MAX_CONCURRENCY = 5;
-const PASS_SCORE_THRESHOLD = 75;
-
-// Synchronous path join. Tauri's path.join() is async; all paths here derive
-// from an already-resolved appDataDir, so a local joiner keeps the code sync.
-// The Tauri fs plugin normalizes forward slashes on Windows.
-function joinPath(...segments: string[]): string {
-  return segments
-    .map((segment, index) =>
-      index === 0
-        ? segment.replace(/[\\/]+$/, "")
-        : segment.replace(/^[\\/]+|[\\/]+$/g, ""),
-    )
-    .filter((segment) => segment.length > 0)
-    .join("/");
-}
+// Verify → fix → re-verify, at most this many fix rounds before shipping the
+// best draft with a warning.
+const MAX_FIX_ROUNDS = 2;
 
 const taskGraphWriteQueues = new Map<string, Promise<void>>();
 
+// Serializes read-modify-write cycles on a session's tasks.json so concurrent
+// section workers can't clobber each other's status updates.
 async function withTaskGraphLock<T>(
   sessionId: string,
   fn: () => Promise<T>,
@@ -150,7 +125,6 @@ function createSectionTask(section: ScopeSection): SectionTask {
     sectionTitle: section.title,
     status: "pending",
     attempts: 0,
-    maxAttempts: 3,
   };
 }
 
@@ -166,13 +140,14 @@ function buildTaskGraph(
         existing.tasks.push(createSectionTask(section));
       }
     }
-    // Re-arm anything a previous run left unfinished: failed tasks get another
-    // shot, and tasks frozen mid-flight by a crash (generating/verifying/fixing)
-    // are reset so they restart cleanly. Only "done" sections are skipped.
+    // Re-arm anything a previous run left unfinished: a crash/cancel can freeze
+    // a task mid-flight (generating/verifying/fixing). Reset everything that
+    // isn't "done" so it restarts cleanly; completed sections are skipped.
     for (const task of existing.tasks) {
       if (task.status !== "done") {
         task.status = "pending";
         task.error = undefined;
+        task.attempts = 0;
       }
     }
     existing.concurrency = clampConcurrency(
@@ -197,56 +172,16 @@ async function loadTaskGraph(sessionDir: string): Promise<TaskGraph | null> {
   return JSON.parse(await readTextFile(tasksPath)) as TaskGraph;
 }
 
-async function writeTaskGraph(
-  sessionDir: string,
-  graph: TaskGraph,
-): Promise<void> {
+async function writeTaskGraph(sessionDir: string, graph: TaskGraph): Promise<void> {
   await writeTextFile(
     joinPath(sessionDir, TASKS_FILE),
     JSON.stringify(graph, null, 2),
   );
 }
 
-async function copyFile(source: string, destination: string): Promise<void> {
-  await writeTextFile(destination, await readTextFile(source));
-}
-
-function depthInstructions(depth: SectionDepth): string {
-  switch (depth) {
-    case "overview":
-      return "overview: 1-2 paragraphs, key concepts only, no worked examples";
-    case "standard":
-      return "standard: thorough explanation, 1-2 worked examples, connect to related concepts";
-    case "deep":
-      return "deep: comprehensive coverage, 3+ worked examples, common exam traps, connections to other sections";
-  }
-}
-
-function normalizeVerdict(raw: Partial<Verdict> | null | undefined): Verdict {
-  const score = Math.max(0, Math.min(100, Number(raw?.score) || 0));
-  return {
-    pass: Boolean(raw?.pass) && score >= PASS_SCORE_THRESHOLD,
-    score,
-    failures: Array.isArray(raw?.failures) ? raw!.failures! : [],
-    suggestions: Array.isArray(raw?.suggestions) ? raw!.suggestions! : [],
-  };
-}
-
-export function buildRubric(section: ScopeSection): SectionRubric {
-  const minimumExamples =
-    section.depth === "overview" ? 0 : section.depth === "standard" ? 1 : 3;
-
-  return {
-    sectionId: section.id,
-    sectionTitle: section.title,
-    requiredConcepts: section.requiredConcepts,
-    requiredFormulas: section.requiredFormulas,
-    requiredTerms: section.definedTerms.map((term) => term.term),
-    minimumExamples,
-    depth: section.depth,
-  };
-}
-
+// Topologically orders pending tasks into dependency "waves". Tasks in a wave
+// have no unfinished dependency on a later wave, so a whole wave can run
+// concurrently. Circular dependencies are broken by dropping the cycle's edges.
 export function getDispatchOrder(
   tasks: SectionTask[],
   sections: ScopeSection[],
@@ -301,13 +236,13 @@ export function getDispatchOrder(
   return waves;
 }
 
+// Runs task thunks with a bounded number in flight at once. Rejections (including
+// cancellation) propagate so the orchestrator stops and the caller can clean up.
 export async function runWithConcurrency<T>(
   taskFns: (() => Promise<T>)[],
   concurrency: number,
 ): Promise<T[]> {
-  if (taskFns.length === 0) {
-    return [];
-  }
+  if (taskFns.length === 0) return [];
 
   const results: T[] = new Array(taskFns.length);
   let nextIndex = 0;
@@ -328,132 +263,6 @@ export async function runWithConcurrency<T>(
   return results;
 }
 
-export async function generateSection(
-  section: ScopeSection,
-  _sessionId: string,
-  llm: LLMClient,
-): Promise<string> {
-  const termsBlock = section.definedTerms
-    .map((term) => `- ${term.term}: ${term.definition}`)
-    .join("\n");
-
-  const prompt = `Write a complete study guide section in Markdown.
-
-Section: ${section.title}
-Weight: ${section.weightPercent}%
-Depth: ${section.depth}
-Depth requirements: ${depthInstructions(section.depth)}
-
-Required concepts (cover every one):
-${section.requiredConcepts.map((concept) => `- ${concept}`).join("\n")}
-
-Required formulas in LaTeX (include every one):
-${section.requiredFormulas.map((formula) => `- ${formula}`).join("\n")}
-
-Defined terms (define every one):
-${termsBlock || "(none)"}
-
-Source hints:
-${section.sourceHints.map((hint) => `- ${hint}`).join("\n") || "(none)"}
-
-Rules:
-- Output valid Markdown only.
-- Use $ for inline LaTeX and $$ for block LaTeX.
-- Do NOT include a top-level # heading.
-- Do NOT include content outside this section's scope.
-- Return the section body only, no preamble or explanation.`;
-
-  return llm.withConfig({ temperature: 0.3 }).ask(prompt);
-}
-
-export async function verifySection(
-  content: string,
-  rubric: SectionRubric,
-  llm: LLMClient,
-): Promise<Verdict> {
-  const prompt = `Evaluate the study guide section against this rubric.
-
-Rubric:
-${JSON.stringify(rubric, null, 2)}
-
-Generated content:
-${content}
-
-Return ONLY a JSON object — no markdown fences, no explanation:
-{
-  "pass": boolean,
-  "score": number,
-  "failures": [{ "type": "missing_concept" | "missing_formula" | "inaccurate" | "insufficient_depth" | "missing_examples", "detail": string, "requiredItem": string | null }],
-  "suggestions": string[]
-}
-
-Check:
-- Every requiredConcept is addressed and explained, not just mentioned.
-- Every requiredFormula is present and correctly formatted.
-- Every requiredTerm is defined.
-- Example count meets minimumExamples (${rubric.minimumExamples}).
-- Depth matches the rubric depth level (${rubric.depth}).
-- No factual inaccuracies detectable from the content itself.
-
-Score 0-100. Set pass to true only if score >= ${PASS_SCORE_THRESHOLD}.`;
-
-  const verdict = await llm
-    .withConfig({ temperature: 0 })
-    .askJSON<Partial<Verdict>>(prompt);
-
-  return normalizeVerdict(verdict);
-}
-
-export async function fixSection(
-  content: string,
-  verdict: Verdict,
-  section: ScopeSection,
-  llm: LLMClient,
-): Promise<string> {
-  const failuresBlock = verdict.failures
-    .map((failure) => {
-      const item = failure.requiredItem
-        ? ` (required: ${failure.requiredItem})`
-        : "";
-      return `- [${failure.type}] ${failure.detail}${item}`;
-    })
-    .join("\n");
-
-  const termsBlock = section.definedTerms
-    .map((term) => `- ${term.term}: ${term.definition}`)
-    .join("\n");
-
-  const prompt = `Fix this study guide section based on the verification verdict.
-
-Original content:
-${content}
-
-Verification failures:
-${failuresBlock || "(none)"}
-
-Suggestions:
-${verdict.suggestions.map((suggestion) => `- ${suggestion}`).join("\n") || "(none)"}
-
-Section spec:
-- Title: ${section.title}
-- Depth: ${section.depth} (${depthInstructions(section.depth)})
-- Required concepts:
-${section.requiredConcepts.map((concept) => `- ${concept}`).join("\n")}
-- Required formulas:
-${section.requiredFormulas.map((formula) => `- ${formula}`).join("\n")}
-- Defined terms:
-${termsBlock || "(none)"}
-
-Rules:
-- Fix all failures.
-- Do not remove any content that was correct.
-- Return the complete fixed Markdown section, not a diff or partial patch.
-- Do NOT include a top-level # heading.
-- Use $ for inline LaTeX and $$ for block LaTeX.`;
-
-  return llm.withConfig({ temperature: 0 }).ask(prompt);
-}
-
 function emitProgress(
   onProgress: OrchestratorProgressCallback,
   task: SectionTask,
@@ -470,21 +279,14 @@ function emitProgress(
   });
 }
 
-async function persistTask(
-  sessionId: string,
-  task: SectionTask,
-): Promise<void> {
+async function persistTask(sessionId: string, task: SectionTask): Promise<void> {
   await withTaskGraphLock(sessionId, async () => {
     const sessionDir = await getSessionDir(sessionId);
     const graph = (await loadTaskGraph(sessionDir))!;
     const index = graph.tasks.findIndex(
       (entry) => entry.sectionId === task.sectionId,
     );
-
-    if (index >= 0) {
-      graph.tasks[index] = task;
-    }
-
+    if (index >= 0) graph.tasks[index] = task;
     await writeTaskGraph(sessionDir, graph);
   });
 }
@@ -502,11 +304,16 @@ async function updateTaskStatus(
   emitProgress(onProgress, task, totalSections, doneSections);
 }
 
-export async function runSectionTask(
+// One section's full subagent loop: generate → verify → (fix → verify)* until
+// the verifier passes or the fix-round budget is spent. The best draft is always
+// shipped to final.md; the task carries a warning if it never passed.
+async function runSectionTask(
   task: SectionTask,
   section: ScopeSection,
+  scope: ScopeDocument,
   sessionId: string,
   llm: LLMClient,
+  signal: AbortSignal | undefined,
   onProgress: OrchestratorProgressCallback,
   totalSections: number,
   doneSections: number,
@@ -514,97 +321,51 @@ export async function runSectionTask(
   const sectionDir = await getSectionDir(sessionId, task.sectionId);
   const contentPath = joinPath(sectionDir, "content.md");
   const verdictPath = joinPath(sectionDir, "verdict.json");
-  const contentFixedPath = joinPath(sectionDir, "content-fixed.md");
   const finalPath = joinPath(sectionDir, "final.md");
 
+  const rubric = buildRubric(section);
+  const groundTruth = buildGroundTruth(section, scope);
+  const opts = { signal };
+
   try {
-    await updateTaskStatus(
-      sessionId,
-      task,
-      "generating",
-      onProgress,
-      totalSections,
-      doneSections,
-    );
+    // Round 0: generate, then verify.
+    await updateTaskStatus(sessionId, task, "generating", onProgress, totalSections, doneSections);
+    let content = await generateSection(section, groundTruth, llm, opts);
+    await writeTextFile(contentPath, content);
 
-    const generated = await generateSection(section, sessionId, llm);
-    await writeTextFile(contentPath, generated);
-
-    await updateTaskStatus(
-      sessionId,
-      task,
-      "verifying",
-      onProgress,
-      totalSections,
-      doneSections,
-    );
-
-    const rubric = buildRubric(section);
-    const content = await readTextFile(contentPath);
-    const verdict = await verifySection(content, rubric, llm);
+    await updateTaskStatus(sessionId, task, "verifying", onProgress, totalSections, doneSections);
+    let verdict: Verdict = await verifySection(content, rubric, groundTruth, llm, opts);
     await writeTextFile(verdictPath, JSON.stringify(verdict, null, 2));
 
-    if (verdict.pass) {
-      await copyFile(contentPath, finalPath);
-      task.completedAt = new Date().toISOString();
-      task.error = undefined;
-      await updateTaskStatus(
-        sessionId,
-        task,
-        "done",
-        onProgress,
-        totalSections,
-        doneSections + 1,
-      );
-      return;
+    // Fix/re-verify loop until it passes or we run out of rounds.
+    let round = 0;
+    while (!verdict.pass && round < MAX_FIX_ROUNDS) {
+      round += 1;
+      task.attempts = round;
+
+      await updateTaskStatus(sessionId, task, "fixing", onProgress, totalSections, doneSections);
+      content = await fixSection(content, verdict, rubric, groundTruth, llm, opts);
+      await writeTextFile(contentPath, content);
+
+      await updateTaskStatus(sessionId, task, "verifying", onProgress, totalSections, doneSections);
+      verdict = await verifySection(content, rubric, groundTruth, llm, opts);
+      await writeTextFile(verdictPath, JSON.stringify(verdict, null, 2));
     }
 
-    if (task.attempts < task.maxAttempts) {
-      await updateTaskStatus(
-        sessionId,
-        task,
-        "fixing",
-        onProgress,
-        totalSections,
-        doneSections,
-      );
-
-      const fixed = await fixSection(content, verdict, section, llm);
-      await writeTextFile(contentFixedPath, fixed);
-      await writeTextFile(finalPath, fixed);
-
-      task.attempts += 1;
-      task.completedAt = new Date().toISOString();
-      task.error =
-        "Shipped after fix pass — verification did not pass; content may need review.";
-
-      await updateTaskStatus(
-        sessionId,
-        task,
-        "done",
-        onProgress,
-        totalSections,
-        doneSections + 1,
-      );
-      return;
-    }
-
-    await copyFile(contentPath, finalPath);
+    await writeTextFile(finalPath, content);
     task.completedAt = new Date().toISOString();
-    task.error = `Shipped without passing verification (score ${verdict.score}).`;
-    console.warn(
-      `[orchestrator] Section "${task.sectionId}" failed verification after ${task.attempts} attempts`,
-    );
+    task.error = verdict.pass
+      ? undefined
+      : `Shipped without passing verification (score ${verdict.score}).`;
+    if (!verdict.pass) {
+      console.warn(
+        `[orchestrator] Section "${task.sectionId}" shipped after ${round} fix round(s) without passing (score ${verdict.score}).`,
+      );
+    }
 
-    await updateTaskStatus(
-      sessionId,
-      task,
-      "done",
-      onProgress,
-      totalSections,
-      doneSections + 1,
-    );
+    await updateTaskStatus(sessionId, task, "done", onProgress, totalSections, doneSections + 1);
   } catch (error) {
+    if (error instanceof AbortError) throw error;
     task.status = "failed";
     task.error = error instanceof Error ? error.message : String(error);
     await persistTask(sessionId, task);
@@ -617,26 +378,23 @@ export async function runOrchestrator(
   scope: ScopeDocument,
   llm: LLMClient,
   onProgress: OrchestratorProgressCallback,
+  signal?: AbortSignal,
 ): Promise<OrchestratorResult> {
   const sessionDir = await getSessionDir(sessionId);
   const existingGraph = await loadTaskGraph(sessionDir);
   const graph = buildTaskGraph(sessionId, scope, existingGraph ?? undefined);
   await writeTaskGraph(sessionDir, graph);
 
-  const sectionMap = new Map(
-    scope.sections.map((section) => [section.id, section]),
-  );
+  const sectionMap = new Map(scope.sections.map((section) => [section.id, section]));
 
-  const pendingTasks = graph.tasks.filter((task) => task.status !== "done");
-
-  for (const task of pendingTasks) {
+  // Pre-create each pending section's directory + rubric (useful for debugging
+  // a run and for resume).
+  for (const task of graph.tasks.filter((t) => t.status !== "done")) {
     const sectionDir = await getSectionDir(sessionId, task.sectionId);
     await mkdir(sectionDir, { recursive: true });
-
-    const rubric = buildRubric(sectionMap.get(task.sectionId)!);
     await writeTextFile(
       joinPath(sectionDir, "rubric.json"),
-      JSON.stringify(rubric, null, 2),
+      JSON.stringify(buildRubric(sectionMap.get(task.sectionId)!), null, 2),
     );
   }
 
@@ -644,6 +402,8 @@ export async function runOrchestrator(
   const totalSections = graph.tasks.length;
 
   for (const wave of waves) {
+    if (signal?.aborted) throw new AbortError();
+
     const waveTasks = wave
       .map((sectionId) => graph.tasks.find((task) => task.sectionId === sectionId))
       .filter(
@@ -651,13 +411,9 @@ export async function runOrchestrator(
           Boolean(task) && task!.status !== "done" && task!.status !== "failed",
       );
 
-    if (waveTasks.length === 0) {
-      continue;
-    }
+    if (waveTasks.length === 0) continue;
 
-    const doneSections = graph.tasks.filter(
-      (task) => task.status === "done",
-    ).length;
+    const doneSections = graph.tasks.filter((task) => task.status === "done").length;
 
     await runWithConcurrency(
       waveTasks.map(
@@ -665,8 +421,10 @@ export async function runOrchestrator(
           runSectionTask(
             task,
             sectionMap.get(task.sectionId)!,
+            scope,
             sessionId,
             llm,
+            signal,
             onProgress,
             totalSections,
             doneSections,
@@ -676,9 +434,7 @@ export async function runOrchestrator(
     );
 
     const refreshed = await loadTaskGraph(sessionDir);
-    if (refreshed) {
-      Object.assign(graph, refreshed);
-    }
+    if (refreshed) Object.assign(graph, refreshed);
   }
 
   const finalGraph = (await loadTaskGraph(sessionDir)) ?? graph;
@@ -697,10 +453,5 @@ export async function runOrchestrator(
     );
   }
 
-  return {
-    sessionId,
-    completedSections,
-    failedSections,
-    finalPaths,
-  };
+  return { sessionId, completedSections, failedSections, finalPaths };
 }

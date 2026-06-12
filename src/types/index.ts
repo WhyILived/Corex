@@ -3,7 +3,12 @@
 
 export type { LLMConfig } from "../llm/client";
 
-export type LLMProvider = "anthropic" | "openai" | "gemini" | "ollama";
+export type LLMProvider =
+  | "anthropic"
+  | "openai"
+  | "gemini"
+  | "ollama"
+  | "openrouter";
 
 // --- Ingestion ---
 

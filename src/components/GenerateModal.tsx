@@ -1,23 +1,17 @@
-import { useRef, useState } from "react";
-import { useNotebooksStore } from "../store/notebooks";
+import { useEffect, useRef, useState } from "react";
 import { useSettingsStore } from "../store/settings";
-import { isTauriRuntime } from "../lib/env";
 import {
-  runGeneration,
-  type GenerationProgress,
-} from "../generate/runGeneration";
+  PHASE_LABELS,
+  useGenerationStore,
+  type GenerationJob,
+} from "../store/generation";
+import { isTauriRuntime } from "../lib/env";
 
 interface GenerateModalProps {
   onClose: () => void;
 }
 
 const ACCEPT = ".pdf,.pptx,.ppt,.png,.jpg,.jpeg,.webp,.txt,.md";
-
-const PHASE_LABELS: Record<GenerationProgress["phase"], string> = {
-  scope: "Reading sources",
-  orchestrate: "Writing sections",
-  assemble: "Assembling",
-};
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -27,17 +21,33 @@ function formatSize(bytes: number): string {
 
 export function GenerateModal({ onClose }: GenerateModalProps) {
   const config = useSettingsStore((s) => s.config);
-  const openNotebook = useNotebooksStore((s) => s.openNotebook);
+  const enqueue = useGenerationStore((s) => s.enqueue);
+  const cancel = useGenerationStore((s) => s.cancel);
+  const dismiss = useGenerationStore((s) => s.dismiss);
 
   const [files, setFiles] = useState<File[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<GenerationProgress | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Stable across retries within this modal: a failed/cancelled run leaves its
+  // partial extraction cache, so retrying the same session id skips the
+  // documents/chunks that already finished.
+  const sessionIdRef = useRef<string | null>(null);
+
+  // The live job for this modal (or undefined once dismissed).
+  const job = useGenerationStore((s) =>
+    jobId ? s.jobs.find((entry) => entry.id === jobId) : undefined,
+  );
+
+  // When the run finishes, the store has already opened the notebook tab — just
+  // close the modal.
+  useEffect(() => {
+    if (job?.status === "done") onClose();
+  }, [job?.status, onClose]);
 
   const tauri = isTauriRuntime();
+  const running = job?.status === "running" || job?.status === "cancelling";
 
   const addFiles = (incoming: FileList | null) => {
     if (!incoming) return;
@@ -51,31 +61,31 @@ export function GenerateModal({ onClose }: GenerateModalProps) {
   const removeFile = (index: number) =>
     setFiles((current) => current.filter((_, i) => i !== index));
 
-  const generate = async () => {
+  const start = () => {
     if (files.length === 0 || running || !config) return;
-    setError(null);
-    setRunning(true);
-    try {
-      const result = await runGeneration(
-        { files, userPrompt: prompt.trim() || undefined },
-        config,
-        setProgress,
-      );
-      await openNotebook(result.sessionId);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setRunning(false);
-    }
+    sessionIdRef.current ??= Date.now().toString(36);
+    const id = enqueue({
+      files,
+      prompt: prompt.trim() || undefined,
+      sessionId: sessionIdRef.current,
+      config,
+    });
+    setJobId(id);
   };
 
-  const pct =
-    progress && progress.total > 0
-      ? Math.round((progress.done / progress.total) * 100)
-      : 0;
+  const retry = () => {
+    if (job) dismiss(job.id);
+    setJobId(null);
+  };
+
+  // Closing while a job runs leaves it going in the background (the manager owns
+  // it); cancelling explicitly aborts and cleans up.
+  const cancelRun = () => {
+    if (job) cancel(job.id);
+  };
 
   return (
-    <div className="modal-backdrop" onClick={running ? undefined : onClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal"
         role="dialog"
@@ -84,8 +94,13 @@ export function GenerateModal({ onClose }: GenerateModalProps) {
       >
         <div className="modal-header">
           <h2>New notebook</h2>
-          <button aria-label="Close" onClick={onClose} disabled={running}>
-            {"\u00d7"}
+          <button
+            type="button"
+            aria-label={running ? "Run in background" : "Close"}
+            title={running ? "Run in background" : "Close"}
+            onClick={onClose}
+          >
+            {"×"}
           </button>
         </div>
 
@@ -102,7 +117,7 @@ export function GenerateModal({ onClose }: GenerateModalProps) {
           </p>
         )}
 
-        {tauri && config && !running && (
+        {tauri && config && !job && (
           <>
             <div
               className={`dropzone${dragging ? " dropzone-active" : ""}`}
@@ -147,7 +162,7 @@ export function GenerateModal({ onClose }: GenerateModalProps) {
                       aria-label={`Remove ${file.name}`}
                       onClick={() => removeFile(index)}
                     >
-                      {"\u00d7"}
+                      {"×"}
                     </button>
                   </li>
                 ))}
@@ -166,13 +181,11 @@ export function GenerateModal({ onClose }: GenerateModalProps) {
               />
             </label>
 
-            {error && <div className="generate-error">{error}</div>}
-
             <div className="settings-actions">
               <button onClick={onClose}>Cancel</button>
               <button
                 className="primary"
-                onClick={() => void generate()}
+                onClick={start}
                 disabled={files.length === 0}
               >
                 Generate
@@ -181,25 +194,79 @@ export function GenerateModal({ onClose }: GenerateModalProps) {
           </>
         )}
 
-        {running && progress && (
-          <div className="generate-progress">
-            <div className="generate-phase">
-              <span>{PHASE_LABELS[progress.phase]}</span>
-              <span className="muted">
-                {progress.done}/{progress.total}
-              </span>
-            </div>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${pct}%` }} />
-            </div>
-            <p className="muted generate-message">{progress.message}</p>
-            <p className="muted generate-hint">
-              This can take several minutes. Keep the app open.
-            </p>
-          </div>
-        )}
+        {job && <JobView job={job} onCancel={cancelRun} onRetry={retry} onClose={onClose} />}
+      </div>
+    </div>
+  );
+}
 
-        {running && !progress && <p className="muted">Starting…</p>}
+function JobView({
+  job,
+  onCancel,
+  onRetry,
+  onClose,
+}: {
+  job: GenerationJob;
+  onCancel: () => void;
+  onRetry: () => void;
+  onClose: () => void;
+}) {
+  if (job.status === "error") {
+    return (
+      <div className="generate-progress">
+        <div className="generate-error">{job.error ?? "Generation failed."}</div>
+        <div className="settings-actions">
+          <button onClick={onClose}>Close</button>
+          <button className="primary" onClick={onRetry}>
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (job.status === "cancelled") {
+    return (
+      <div className="generate-progress">
+        <p className="muted">Generation cancelled. Partial files were cleaned up.</p>
+        <div className="settings-actions">
+          <button onClick={onClose}>Close</button>
+          <button className="primary" onClick={onRetry}>
+            Start over
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const phaseLabel = job.progress ? PHASE_LABELS[job.progress.phase] : "Starting…";
+  const cancelling = job.status === "cancelling";
+
+  return (
+    <div className="generate-progress">
+      <div className="generate-phase">
+        <span>{cancelling ? "Cancelling…" : phaseLabel}</span>
+        <span className="muted">{job.percent}%</span>
+      </div>
+      <div className="progress-bar">
+        <div className="progress-fill" style={{ width: `${job.percent}%` }} />
+      </div>
+      {job.progress?.message && (
+        <p className="muted generate-message" title={job.progress.message}>
+          {job.progress.message}
+        </p>
+      )}
+      <p className="muted generate-hint">
+        Runs in the background — you can close this window and keep working. Keep
+        the app open until it finishes.
+      </p>
+      <div className="settings-actions">
+        <button onClick={onCancel} disabled={cancelling}>
+          Cancel
+        </button>
+        <button className="primary" onClick={onClose}>
+          Run in background
+        </button>
       </div>
     </div>
   );

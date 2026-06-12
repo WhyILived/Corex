@@ -1,8 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "katex/dist/katex.min.css";
+import { ensureWebStreams } from "./lib/streams";
 import "./styles.css";
 import { App } from "./App";
+
+ensureWebStreams();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

@@ -14,7 +14,7 @@ const STORAGE_KEY = "corex.theme";
 
 function systemTheme(): ResolvedTheme {
   if (typeof window === "undefined" || !window.matchMedia) {
-    return "light";
+    return "dark";
   }
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
@@ -38,7 +38,7 @@ function loadPreference(): ThemePreference {
   const stored = localStorage.getItem(STORAGE_KEY);
   return stored === "light" || stored === "dark" || stored === "system"
     ? stored
-    : "system";
+    : "dark";
 }
 
 const initialPreference = loadPreference();

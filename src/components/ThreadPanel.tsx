@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNotebooksStore, type NotebookTab } from "../store/notebooks";
 import { useSettingsStore } from "../store/settings";
 import { Markdown } from "./Markdown";
+import { GitBranchIcon, SendIcon } from "./icons";
 
 interface ThreadPanelProps {
   tab: NotebookTab;
@@ -16,6 +17,7 @@ export function ThreadPanel({ tab }: ThreadPanelProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const thread = useMemo(() => {
     if (!tab.activeThreadId || !tab.doc) return undefined;
@@ -32,6 +34,10 @@ export function ThreadPanel({ tab }: ThreadPanelProps) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [thread?.messages.length, lastMessage?.content.length, sending]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [thread?.id]);
 
   if (!thread) return null;
 
@@ -53,7 +59,9 @@ export function ThreadPanel({ tab }: ThreadPanelProps) {
   return (
     <aside className="thread-panel">
       <header className="thread-header">
-        <span>Thread</span>
+        <span className="thread-title">
+          <GitBranchIcon /> Thread
+        </span>
         <button
           aria-label="Close thread"
           onClick={() => void closeThread(tab.sessionId)}
@@ -62,7 +70,9 @@ export function ThreadPanel({ tab }: ThreadPanelProps) {
         </button>
       </header>
 
-      <blockquote className="thread-quote">{thread.anchorQuote}</blockquote>
+      <blockquote className="thread-quote">
+        <Markdown source={thread.anchorQuote} idPrefix={`${thread.id}-quote`} />
+      </blockquote>
 
       <div className="thread-messages" ref={scrollRef}>
         {thread.messages.length === 0 && !sending && (
@@ -97,6 +107,7 @@ export function ThreadPanel({ tab }: ThreadPanelProps) {
         {config ? (
           <>
             <textarea
+              ref={inputRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -109,11 +120,12 @@ export function ThreadPanel({ tab }: ThreadPanelProps) {
               rows={2}
             />
             <button
-              className="primary"
+              className="send-btn"
+              aria-label="Send"
               onClick={() => void send()}
               disabled={sending || !draft.trim()}
             >
-              Send
+              <SendIcon />
             </button>
           </>
         ) : (

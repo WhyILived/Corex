@@ -1,6 +1,13 @@
 import { paginateForContext } from "../ingest/ingest";
-import { LLMError, type LLMClient } from "../llm/client";
+import { clampChars } from "../lib/text";
+import { LLMError, isAbortError, type LLMClient } from "../llm/client";
+import {
+  extractJsonPayload,
+  salvageTruncatedArray,
+  stripCodeFences,
+} from "../llm/json";
 import type {
+  DefinedTerm,
   DocumentPage,
   ExamExtraction,
   ExamQuestion,
@@ -18,89 +25,102 @@ const MAX_EXAM_VISION_PAGES = 15;
 const SPARSE_TEXT_THRESHOLD = 200;
 const EXTRACT_CONCURRENCY = 3;
 const CHUNK_CONCURRENCY = 3;
+
+// Ollama serves one request at a time, so extra workers only pile up in its
+// queue (where webview reloads abort them) and thrash the prompt cache.
+// Cloud providers handle the concurrency fine.
+function concurrencyFor(llm: LLMClient, max: number): number {
+  return llm.provider === "ollama" ? 1 : max;
+}
 // Output budget for extraction calls. Dense inputs (textbooks) produce large
 // JSON; a low cap truncates mid-array and the parse fails.
 const EXTRACTION_MAX_TOKENS = 8192;
 // Chunk size for text extraction. Kept moderate so the JSON the model returns
 // for one chunk stays comfortably inside EXTRACTION_MAX_TOKENS.
 const TEXT_CHUNK_CHAR_BUDGET = 24000;
+// Outline and exam text are sent to the model whole (not chunked like slides),
+// so they are capped to keep a single request inside the context window.
+const OUTLINE_MAX_CHARS = 120000;
+const EXAM_TEXT_MAX_CHARS = 120000;
 
-function stripMarkdownFences(text: string): string {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i);
-  return fenced ? fenced[1]!.trim() : trimmed;
-}
+// System prompt for vision extraction calls (askWithImages bypasses the client's
+// default JSON-mode system prompt, so it is supplied here explicitly).
+const EXTRACTION_SYSTEM =
+  "You are a precise data-extraction engine. Respond with a single valid JSON " +
+  "value and nothing else — no prose, no explanation, no markdown code fences.";
 
 function parseJsonResponse<T>(raw: string): T {
-  return JSON.parse(stripMarkdownFences(raw)) as T;
-}
-
-// Recovers complete top-level objects from a truncated JSON array (e.g. when
-// the model hit its output token limit mid-array). Returns null if nothing
-// usable could be recovered.
-function salvageTruncatedArray<T>(raw: string): T[] | null {
-  const start = raw.indexOf("[");
-  if (start === -1) return null;
-
-  const items: T[] = [];
-  let depth = 0;
-  let objectStart = -1;
-  let inString = false;
-  let escaped = false;
-
-  for (let i = start + 1; i < raw.length; i++) {
-    const char = raw[i]!;
-
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (char === "\\") {
-        escaped = true;
-      } else if (char === '"') {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (char === '"') {
-      inString = true;
-    } else if (char === "{") {
-      if (depth === 0) objectStart = i;
-      depth += 1;
-    } else if (char === "}") {
-      depth -= 1;
-      if (depth === 0 && objectStart !== -1) {
-        try {
-          items.push(JSON.parse(raw.slice(objectStart, i + 1)) as T);
-        } catch {
-          // Skip malformed entries; keep whatever else parses.
-        }
-        objectStart = -1;
-      }
-    }
-  }
-
-  return items.length > 0 ? items : null;
-}
-
-function parseSlideSections(raw: string): SlideSection[] {
-  const stripped = stripMarkdownFences(raw);
-
-  try {
-    return JSON.parse(stripped) as SlideSection[];
-  } catch {
-    const salvaged = salvageTruncatedArray<SlideSection>(stripped);
-    if (salvaged) {
-      console.warn(
-        `[extract] Response JSON was truncated; salvaged ${salvaged.length} section(s)`,
-      );
-      return salvaged;
-    }
+  const parsed = extractJsonPayload<T>(raw, "object");
+  if (parsed === null) {
     throw new LLMError(
       `Invalid JSON in extraction response: ${raw.slice(0, 300)}`,
       0,
     );
   }
+  return parsed;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+// Keeps only items shaped like a SlideSection and fills in missing arrays.
+// Chatty models leak scratchpad fragments (e.g. bare {term, definition}
+// objects) into salvaged output; passing those downstream crashes synthesis
+// on `section.title`.
+function normalizeSlideSections(items: unknown[]): SlideSection[] {
+  const sections: SlideSection[] = [];
+  for (const item of items) {
+    const value = item as Partial<SlideSection> | null;
+    if (!value || typeof value !== "object" || typeof value.title !== "string") {
+      continue;
+    }
+    sections.push({
+      title: value.title,
+      concepts: stringArray(value.concepts),
+      formulas: stringArray(value.formulas),
+      definedTerms: Array.isArray(value.definedTerms)
+        ? value.definedTerms.filter(
+            (term): term is DefinedTerm =>
+              !!term &&
+              typeof term.term === "string" &&
+              typeof term.definition === "string",
+          )
+        : [],
+      figureDescriptions: stringArray(value.figureDescriptions),
+    });
+  }
+  return sections;
+}
+
+function parseSlideSections(raw: string): SlideSection[] {
+  const parsed = extractJsonPayload<unknown[]>(raw, "array");
+  if (parsed) {
+    const sections = normalizeSlideSections(parsed);
+    if (sections.length > 0) {
+      return sections;
+    }
+  }
+
+  // Last resort: the array itself was cut off mid-object (output token cap),
+  // so no balanced payload exists. Recover the complete objects.
+  const salvaged = salvageTruncatedArray<unknown>(stripCodeFences(raw));
+  if (salvaged) {
+    const sections = normalizeSlideSections(salvaged);
+    if (sections.length > 0) {
+      console.warn(
+        `[extract] Response JSON was malformed; salvaged ${sections.length} section(s)`,
+      );
+      return sections;
+    }
+  }
+
+  throw new LLMError(
+    `Invalid JSON in extraction response: ${raw.slice(0, 300)}`,
+    0,
+  );
 }
 
 function documentText(doc: RawDocument): string {
@@ -165,6 +185,7 @@ Return ONLY a JSON object matching this shape — no markdown fences, no explana
 }
 
 Rules:
+- Output minified JSON on a single line — no indentation, no line breaks, no markdown fences.
 - Topic titles must be 6 words or fewer.
 - Subtopics are specific concepts, not vague descriptions.
 - Assessment weight is a number (30 for 30%, not "30%").
@@ -187,11 +208,12 @@ Return ONLY a JSON array of SlideSection objects — no markdown fences, no expl
 [{ "title": string, "concepts": string[], "formulas": string[], "definedTerms": [{ "term": string, "definition": string }], "figureDescriptions": string[] }]
 
 Rules:
+- Output minified JSON on a single line — no indentation, no line breaks, no markdown fences.
 - One section per major topic (usually 1-3 sections per lecture chunk).
-- Concepts are specific and precise, not vague.
+- Concepts are specific and precise, not vague — at most 8 words each.
 - Formulas in LaTeX notation exactly as written in the slides.
 - Defined terms are only words given explicit definitions in the slides.
-- Figure descriptions should be detailed enough to recreate or search for the figure.
+- Figure descriptions: one concise sentence each, specific enough to search for the figure.
 
 Slide text:
 ${text}`;
@@ -216,11 +238,12 @@ Return ONLY a JSON array of SlideSection objects — no markdown fences, no expl
 [{ "title": string, "concepts": string[], "formulas": string[], "definedTerms": [{ "term": string, "definition": string }], "figureDescriptions": string[] }]
 
 Rules:
+- Output minified JSON on a single line — no indentation, no line breaks, no markdown fences.
 - One section per major topic (usually 1-3 sections per lecture chunk).
-- Concepts are specific and precise, not vague.
+- Concepts are specific and precise, not vague — at most 8 words each.
 - Formulas in LaTeX notation exactly as written in the slides.
 - Defined terms are only words given explicit definitions in the slides.
-- Figure descriptions should be detailed enough to recreate or search for the figure.`;
+- Figure descriptions: one concise sentence each, specific enough to search for the figure.`;
 }
 
 function buildExamTextPrompt(
@@ -237,6 +260,7 @@ Return ONLY a JSON object — no markdown fences, no explanation:
 { "totalMarks": number | null, "questions": [{ "id": string, "text": string, "marks": number, "topic": string, "concepts": string[], "hasSolution": boolean }] }
 
 Rules:
+- Output minified JSON on a single line — no indentation, no line breaks, no markdown fences.
 - Include ALL questions and sub-questions as separate entries (Q1a, Q1b are separate).
 - id format: "{year}_{examTypeLetter}_Q{num}" e.g. "${yearStr}_${typeLetter}_Q3b"
 - topic should match a course topic name, not a generic description.
@@ -265,6 +289,7 @@ Return ONLY a JSON object — no markdown fences, no explanation:
 { "totalMarks": number | null, "questions": [{ "id": string, "text": string, "marks": number, "topic": string, "concepts": string[], "hasSolution": boolean }] }
 
 Rules:
+- Output minified JSON on a single line — no indentation, no line breaks, no markdown fences.
 - Include ALL questions and sub-questions as separate entries (Q1a, Q1b are separate).
 - id format: "{year}_{examTypeLetter}_Q{num}" e.g. "${yearStr}_${typeLetter}_Q3b"
 - topic should match a course topic name, not a generic description.
@@ -307,6 +332,10 @@ async function extractSlidesChunk(
     sections.push(...parseSlideSections(raw));
   }
 
+  // Vision failures (e.g. a non-vision model rejecting image input) must not
+  // discard the sections already extracted from the chunk's text pass.
+  const visionErrors: string[] = [];
+
   for (let i = 0; i < visionPages.length; i += MAX_VISION_IMAGES_PER_CALL) {
     const batch = visionPages.slice(i, i + MAX_VISION_IMAGES_PER_CALL);
     const images = batch.map((page) => ({
@@ -323,8 +352,24 @@ async function extractSlidesChunk(
       totalChunks,
       batch.map((page) => page.pageNumber),
     );
-    const raw = await llm.askWithImages(prompt, images);
-    sections.push(...parseSlideSections(raw));
+    try {
+      const raw = await llm.askWithImages(prompt, images, {
+        system: EXTRACTION_SYSTEM,
+      });
+      sections.push(...parseSlideSections(raw));
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      visionErrors.push(message);
+      console.error(
+        `[extract] Vision batch (pages ${batch[0]!.pageNumber}–${batch[batch.length - 1]!.pageNumber}) failed:`,
+        error,
+      );
+    }
+  }
+
+  if (sections.length === 0 && visionErrors.length > 0) {
+    throw new Error(visionErrors[0]);
   }
 
   return sections;
@@ -334,7 +379,7 @@ export async function extractOutline(
   doc: RawDocument,
   llm: LLMClient,
 ): Promise<OutlineExtraction> {
-  const text = documentText(doc);
+  const text = clampChars(documentText(doc), OUTLINE_MAX_CHARS, `outline ${doc.filename}`);
   return llm
     .withConfig({ maxTokens: EXTRACTION_MAX_TOKENS })
     .askJSON<OutlineExtraction>(buildOutlinePrompt(text));
@@ -344,6 +389,7 @@ export async function extractSlides(
   doc: RawDocument,
   llm: LLMClient,
   onChunkProgress?: (chunk: number, total: number) => void,
+  cache?: ExtractionCache,
 ): Promise<SlidesExtraction> {
   const extractor = llm.withConfig({ maxTokens: EXTRACTION_MAX_TOKENS });
   const chunks = paginateForContext(doc, TEXT_CHUNK_CHAR_BUDGET);
@@ -352,19 +398,33 @@ export async function extractSlides(
   let done = 0;
   let nextIndex = 0;
 
+  // Announce the chunk count up front so the UI can show activity before the
+  // first (potentially slow) chunk completes.
+  onChunkProgress?.(0, chunks.length);
+
   async function worker(): Promise<void> {
     while (nextIndex < chunks.length) {
       const index = nextIndex;
       nextIndex += 1;
 
       try {
-        results[index] = await extractSlidesChunk(
-          chunks[index]!,
-          extractor,
-          index,
-          chunks.length,
-        );
+        const cached = await cache?.loadChunk(doc, index, chunks.length);
+        if (cached) {
+          console.log(
+            `[extract] Chunk ${index + 1}/${chunks.length} of "${doc.filename}" loaded from cache`,
+          );
+          results[index] = cached;
+        } else {
+          results[index] = await extractSlidesChunk(
+            chunks[index]!,
+            extractor,
+            index,
+            chunks.length,
+          );
+          await cache?.saveChunk(doc, index, chunks.length, results[index]!);
+        }
       } catch (error) {
+        if (isAbortError(error)) throw error;
         // A single bad chunk shouldn't sink the whole document.
         results[index] = [];
         const message = error instanceof Error ? error.message : String(error);
@@ -382,7 +442,12 @@ export async function extractSlides(
 
   await Promise.all(
     Array.from(
-      { length: Math.min(CHUNK_CONCURRENCY, Math.max(chunks.length, 1)) },
+      {
+        length: Math.min(
+          concurrencyFor(llm, CHUNK_CONCURRENCY),
+          Math.max(chunks.length, 1),
+        ),
+      },
       () => worker(),
     ),
   );
@@ -401,6 +466,28 @@ export async function extractSlides(
     weekOrUnit: inferWeekOrUnit(doc.filename),
     sections: allSections,
   };
+}
+
+// Same boundary guard as normalizeSlideSections: drop malformed entries and
+// default optional fields so downstream `question.topic.trim()` etc. is safe.
+function normalizeExamQuestions(questions: unknown): ExamQuestion[] {
+  if (!Array.isArray(questions)) return [];
+  const normalized: ExamQuestion[] = [];
+  for (const [index, item] of questions.entries()) {
+    const value = item as Partial<ExamQuestion> | null;
+    if (!value || typeof value !== "object" || typeof value.text !== "string") {
+      continue;
+    }
+    normalized.push({
+      id: typeof value.id === "string" ? value.id : `q${index + 1}`,
+      text: value.text,
+      marks: typeof value.marks === "number" ? value.marks : 0,
+      topic: typeof value.topic === "string" ? value.topic : "",
+      concepts: stringArray(value.concepts),
+      hasSolution: value.hasSolution === true,
+    });
+  }
+  return normalized;
 }
 
 export async function extractExam(
@@ -433,21 +520,23 @@ export async function extractExam(
       data: page.imageData!,
       mimeType: page.mimeType,
     }));
-    const raw = await extractor.askWithImages(prompt, images);
+    const raw = await extractor.askWithImages(prompt, images, {
+      system: EXTRACTION_SYSTEM,
+    });
     const parsed = parseJsonResponse<{
       totalMarks: number | null;
       questions: ExamQuestion[];
     }>(raw);
     totalMarks = parsed.totalMarks ?? undefined;
-    questions = parsed.questions;
+    questions = normalizeExamQuestions(parsed.questions);
   } else {
-    const text = documentText(doc);
+    const text = clampChars(documentText(doc), EXAM_TEXT_MAX_CHARS, `exam ${doc.filename}`);
     const parsed = await extractor.askJSON<{
       totalMarks: number | null;
       questions: ExamQuestion[];
     }>(buildExamTextPrompt(text, year, examType));
     totalMarks = parsed.totalMarks ?? undefined;
-    questions = parsed.questions;
+    questions = normalizeExamQuestions(parsed.questions);
   }
 
   return {
@@ -459,40 +548,74 @@ export async function extractExam(
   };
 }
 
-type DocExtraction =
+export type DocExtraction =
   | { kind: "outline"; outline: OutlineExtraction }
   | { kind: "slides"; slides: SlidesExtraction }
   | { kind: "exam"; exam: ExamExtraction }
   | { kind: "none" };
 
+// Persists completed extraction work so a retry of a dead run (app closed,
+// webview reloaded, provider error) skips already-finished documents/chunks
+// instead of re-paying for them. Implementations must swallow their own I/O
+// errors — a broken cache should never fail an extraction.
+export interface ExtractionCache {
+  loadDoc(doc: RawDocument): Promise<DocExtraction | null>;
+  saveDoc(doc: RawDocument, extraction: DocExtraction): Promise<void>;
+  loadChunk(
+    doc: RawDocument,
+    index: number,
+    total: number,
+  ): Promise<SlideSection[] | null>;
+  saveChunk(
+    doc: RawDocument,
+    index: number,
+    total: number,
+    sections: SlideSection[],
+  ): Promise<void>;
+}
+
 async function extractDocument(
   doc: RawDocument,
   llm: LLMClient,
+  onChunkProgress?: (chunk: number, total: number) => void,
+  cache?: ExtractionCache,
 ): Promise<DocExtraction> {
   switch (doc.type) {
     case "course_outline":
       return { kind: "outline", outline: await extractOutline(doc, llm) };
     case "slides":
-      return { kind: "slides", slides: await extractSlides(doc, llm) };
+      return {
+        kind: "slides",
+        slides: await extractSlides(doc, llm, onChunkProgress, cache),
+      };
     case "past_exam":
       return { kind: "exam", exam: await extractExam(doc, llm) };
     // Textbooks and unrecognized files still carry course content — run them
     // through the content extractor so every uploaded source is analyzed.
     case "textbook":
     case "other":
-      return { kind: "slides", slides: await extractSlides(doc, llm) };
+      return {
+        kind: "slides",
+        slides: await extractSlides(doc, llm, onChunkProgress, cache),
+      };
   }
+}
+
+export interface ExtractProgressUpdate {
+  done: number;
+  total: number;
+  filename: string;
+  type: InputDocumentType;
+  status: "extracting" | "extracted";
+  chunksDone?: number;
+  chunksTotal?: number;
 }
 
 export async function extractAll(
   docs: RawDocument[],
   llm: LLMClient,
-  onProgress?: (
-    done: number,
-    total: number,
-    filename: string,
-    type: InputDocumentType,
-  ) => void,
+  onProgress?: (update: ExtractProgressUpdate) => void,
+  cache?: ExtractionCache,
 ): Promise<{
   outline?: OutlineExtraction;
   slides: SlidesExtraction[];
@@ -511,8 +634,33 @@ export async function extractAll(
       const doc = docs[index]!;
 
       try {
-        extractions[index] = await extractDocument(doc, llm);
+        const cached = await cache?.loadDoc(doc);
+        if (cached) {
+          console.log(`[extract] "${doc.filename}" loaded from cache`);
+          extractions[index] = cached;
+        } else {
+          const extraction = await extractDocument(
+            doc,
+            llm,
+            (chunksDone, chunksTotal) =>
+              onProgress?.({
+                done,
+                total: docs.length,
+                filename: doc.filename,
+                type: doc.type,
+                status: "extracting",
+                chunksDone,
+                chunksTotal,
+              }),
+            cache,
+          );
+          extractions[index] = extraction;
+          if (extraction.kind !== "none") {
+            await cache?.saveDoc(doc, extraction);
+          }
+        }
       } catch (error) {
+        if (isAbortError(error)) throw error;
         extractions[index] = { kind: "none" };
         const message = error instanceof Error ? error.message : String(error);
         failures.push(`${doc.filename}: ${message}`);
@@ -520,13 +668,24 @@ export async function extractAll(
       }
 
       done += 1;
-      onProgress?.(done, docs.length, doc.filename, doc.type);
+      onProgress?.({
+        done,
+        total: docs.length,
+        filename: doc.filename,
+        type: doc.type,
+        status: "extracted",
+      });
     }
   }
 
   await Promise.all(
     Array.from(
-      { length: Math.min(EXTRACT_CONCURRENCY, Math.max(docs.length, 1)) },
+      {
+        length: Math.min(
+          concurrencyFor(llm, EXTRACT_CONCURRENCY),
+          Math.max(docs.length, 1),
+        ),
+      },
       () => worker(),
     ),
   );

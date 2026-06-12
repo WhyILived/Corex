@@ -1,4 +1,5 @@
 import type { LLMClient } from "../llm/client";
+import { clampChars } from "../lib/text";
 import type {
   DefinedTerm,
   ExamExtraction,
@@ -396,10 +397,12 @@ export async function synthesizeScope(
   const weights = computeTopicWeights(exams);
   const canonicalTopics = buildCanonicalTopics(outline, slides);
 
+  // Cap the digests so a large multi-file course can't push the synthesis
+  // request past the model's context window.
   const prompt = buildSynthesisPrompt(
     canonicalTopics,
-    buildSlidesDigest(slides),
-    buildExamsDigest(exams),
+    clampChars(buildSlidesDigest(slides), 90000, "slides digest"),
+    clampChars(buildExamsDigest(exams), 60000, "exams digest"),
     buildWeightsDigest(weights),
     userPrompt,
   );

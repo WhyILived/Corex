@@ -1,11 +1,6 @@
-import {
-  exists,
-  readDir,
-  readFile,
-  readTextFile,
-  writeTextFile,
-} from "@tauri-apps/plugin-fs";
+import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { appDataDir, join } from "@tauri-apps/api/path";
+import { sanitizeMarkdown } from "../lib/sanitize";
 import type {
   DefinedTerm,
   ScopeDocument,
@@ -30,7 +25,6 @@ export interface StudyGuideSection {
   weekOrUnit?: string;
   contentMd: string;
   nodes: ContentNode[];
-  assets: SectionAsset[];
   threads: InlineThread[];
   analytics: SectionAnalytics;
   warnings: SectionWarning[];
@@ -42,21 +36,17 @@ export type ContentNodeType =
   | "formula_block"
   | "code"
   | "list"
-  | "figure";
+  | "figure"
+  | "table"
+  | "hr"
+  | "svg"
+  | "quote";
 
 export interface ContentNode {
   id: string;
   type: ContentNodeType;
   raw: string;
   level?: number;
-}
-
-export interface SectionAsset {
-  id: string;
-  type: "image";
-  src: string;
-  caption?: string;
-  sourceType: "textbook" | "web";
 }
 
 export interface InlineThread {
@@ -96,16 +86,8 @@ export interface SectionWarning {
 
 const SESSIONS_DIR = "sessions";
 const SECTIONS_DIR = "sections";
-const ASSETS_DIR = "assets";
 const STUDY_GUIDE_FILE = "study-guide.json";
 const CHAT_FILE = "chat.json";
-
-const IMAGE_MIME_BY_EXT: Record<string, string> = {
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  webp: "image/webp",
-};
 
 async function getSessionDir(sessionId: string): Promise<string> {
   return join(await appDataDir(), SESSIONS_DIR, sessionId);
@@ -116,27 +98,6 @@ async function getSectionDir(
   sectionId: string,
 ): Promise<string> {
   return join(sessionDir, SECTIONS_DIR, sectionId);
-}
-
-function getExtension(filename: string): string {
-  const dot = filename.lastIndexOf(".");
-  return dot >= 0 ? filename.slice(dot + 1).toLowerCase() : "";
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  const chunks: string[] = [];
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    chunks.push(String.fromCharCode.apply(null, chunk as unknown as number[]));
-  }
-  return btoa(chunks.join(""));
-}
-
-function captionFromFilename(filename: string): string {
-  const dot = filename.lastIndexOf(".");
-  const base = dot >= 0 ? filename.slice(0, dot) : filename;
-  return base.replace(/[_-]+/g, " ").trim();
 }
 
 function nodeId(sectionId: string, index: number): string {
@@ -157,6 +118,44 @@ const FENCE_RE = /^```/;
 const HEADING_RE = /^(#{1,6})\s+(.*)$/;
 const FIGURE_RE = /^!\[[^\]]*\]\([^)]*\)\s*$/;
 const LIST_ITEM_RE = /^(\s*)([-*]|\d+\.)\s+/;
+// Thematic break: 3+ of -, *, or _ on their own line (CommonMark allows
+// interleaving spaces). Checked before lists so "---" isn't seen as a bullet.
+const HR_RE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+const BLOCKQUOTE_RE = /^ {0,3}>/;
+const TABLE_ROW_RE = /^\s*\|.+\|\s*$/;
+const TABLE_SEP_RE = /^\s*\|[\s:|\-]+\|\s*$/;
+
+function isTableLine(line: string): boolean {
+  return TABLE_ROW_RE.test(line) || TABLE_SEP_RE.test(line);
+}
+
+function isTableDataRow(line: string): boolean {
+  return TABLE_ROW_RE.test(line) && !TABLE_SEP_RE.test(line);
+}
+
+export function parseMarkdownTable(raw: string): {
+  headers: string[];
+  rows: string[][];
+} {
+  const parsed = raw
+    .split("\n")
+    .filter((line) => !TABLE_SEP_RE.test(line))
+    .map((line) =>
+      line
+        .trim()
+        .replace(/^\|/, "")
+        .replace(/\|$/, "")
+        .split("|")
+        .map((cell) => cell.trim()),
+    );
+
+  if (parsed.length === 0) {
+    return { headers: [], rows: [] };
+  }
+
+  const [headers, ...rows] = parsed;
+  return { headers: headers ?? [], rows };
+}
 
 export function parseContentNodes(
   sectionId: string,
@@ -224,11 +223,47 @@ export function parseContentNodes(
       continue;
     }
 
+    // Inline SVG block (emitted by the visual pipeline). Collect from the
+    // opening <svg until the line containing </svg>.
+    if (line.trim().toLowerCase().startsWith("<svg")) {
+      const block: string[] = [line];
+      let closed = /<\/svg>/i.test(line);
+      while (!closed && i + 1 < lines.length) {
+        i += 1;
+        block.push(lines[i]!);
+        if (/<\/svg>/i.test(lines[i]!)) closed = true;
+      }
+      i += 1;
+      if (closed) {
+        push("svg", block.join("\n"));
+        continue;
+      }
+      // Unterminated — fall back to treating the opener as a paragraph.
+      push("paragraph", block.join("\n"));
+      continue;
+    }
+
     const headingMatch = line.match(HEADING_RE);
     if (headingMatch) {
       const level = Math.min(headingMatch[1]!.length, 4);
       push("heading", line, level);
       i += 1;
+      continue;
+    }
+
+    if (HR_RE.test(line)) {
+      push("hr", line);
+      i += 1;
+      continue;
+    }
+
+    if (BLOCKQUOTE_RE.test(line)) {
+      const block: string[] = [];
+      while (i < lines.length && BLOCKQUOTE_RE.test(lines[i]!)) {
+        block.push(lines[i]!);
+        i += 1;
+      }
+      push("quote", block.join("\n"));
       continue;
     }
 
@@ -240,12 +275,37 @@ export function parseContentNodes(
 
     if (LIST_ITEM_RE.test(line)) {
       const block: string[] = [];
-      while (i < lines.length && LIST_ITEM_RE.test(lines[i]!)) {
-        block.push(lines[i]!);
-        i += 1;
+      while (i < lines.length) {
+        if (LIST_ITEM_RE.test(lines[i]!)) {
+          block.push(lines[i]!);
+          i += 1;
+          continue;
+        }
+        // Keep a "loose" list (blank line between items) as one list when the
+        // next non-blank line is still a list item.
+        if (lines[i]!.trim() === "" && LIST_ITEM_RE.test(lines[i + 1] ?? "")) {
+          block.push(lines[i]!);
+          i += 1;
+          continue;
+        }
+        break;
       }
       push("list", block.join("\n"));
       continue;
+    }
+
+    if (isTableLine(line)) {
+      const block: string[] = [line];
+      let j = i + 1;
+      while (j < lines.length && isTableLine(lines[j]!)) {
+        block.push(lines[j]!);
+        j += 1;
+      }
+      if (block.some(isTableDataRow) && block.length >= 2) {
+        push("table", block.join("\n"));
+        i = j;
+        continue;
+      }
     }
 
     const paragraph: string[] = [];
@@ -255,8 +315,12 @@ export function parseContentNodes(
       !lines[i]!.trim().startsWith(FORMULA_DELIM) &&
       !FENCE_RE.test(lines[i]!.trim()) &&
       !HEADING_RE.test(lines[i]!) &&
+      !HR_RE.test(lines[i]!) &&
+      !BLOCKQUOTE_RE.test(lines[i]!) &&
+      !lines[i]!.trim().toLowerCase().startsWith("<svg") &&
       !FIGURE_RE.test(lines[i]!) &&
-      !LIST_ITEM_RE.test(lines[i]!)
+      !LIST_ITEM_RE.test(lines[i]!) &&
+      !isTableLine(lines[i]!)
     ) {
       paragraph.push(lines[i]!);
       i += 1;
@@ -265,46 +329,6 @@ export function parseContentNodes(
   }
 
   return nodes;
-}
-
-export async function loadSectionAssets(
-  sectionId: string,
-  sessionDir: string,
-): Promise<SectionAsset[]> {
-  const sectionDir = await getSectionDir(sessionDir, sectionId);
-  const assetsDir = await join(sectionDir, ASSETS_DIR);
-
-  if (!(await exists(assetsDir))) {
-    return [];
-  }
-
-  const entries = await readDir(assetsDir);
-  const assets: SectionAsset[] = [];
-
-  for (const entry of entries) {
-    if (!entry.isFile) {
-      continue;
-    }
-
-    const ext = getExtension(entry.name);
-    const mimeType = IMAGE_MIME_BY_EXT[ext];
-    if (!mimeType) {
-      continue;
-    }
-
-    const bytes = await readFile(await join(assetsDir, entry.name));
-    const base64 = bytesToBase64(bytes);
-
-    assets.push({
-      id: `${sectionId}_asset_${assets.length}`,
-      type: "image",
-      src: `data:${mimeType};base64,${base64}`,
-      caption: captionFromFilename(entry.name),
-      sourceType: entry.name.includes("_web_") ? "web" : "textbook",
-    });
-  }
-
-  return assets;
 }
 
 export async function assembleStudyGuide(
@@ -344,12 +368,15 @@ async function assembleSection(
   scopeSection: ScopeSection,
 ): Promise<StudyGuideSection> {
   const sectionDir = await getSectionDir(sessionDir, scopeSection.id);
+  const visualPath = await join(sectionDir, "content-visual.md");
   const finalPath = await join(sectionDir, "final.md");
   const verdictPath = await join(sectionDir, "verdict.json");
   const warnings: SectionWarning[] = [];
 
   let contentMd = "";
-  if (await exists(finalPath)) {
+  if (await exists(visualPath)) {
+    contentMd = await readTextFile(visualPath);
+  } else if (await exists(finalPath)) {
     contentMd = await readTextFile(finalPath);
   } else {
     console.warn(
@@ -360,6 +387,10 @@ async function assembleSection(
       message: "No final content was produced for this section.",
     });
   }
+
+  // Strip any prompt brief / formatting rules the model echoed into the content
+  // (defensive — the generator's system prompt already forbids this).
+  contentMd = sanitizeMarkdown(contentMd);
 
   if (await exists(verdictPath)) {
     try {
@@ -382,7 +413,6 @@ async function assembleSection(
   }
 
   const nodes = parseContentNodes(scopeSection.id, contentMd);
-  const assets = await loadSectionAssets(scopeSection.id, sessionDir);
 
   return {
     id: scopeSection.id,
@@ -392,7 +422,6 @@ async function assembleSection(
     weekOrUnit: scopeSection.weekOrUnit,
     contentMd,
     nodes,
-    assets,
     threads: [],
     analytics: zeroedAnalytics(),
     warnings,
