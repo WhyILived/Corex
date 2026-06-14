@@ -16,8 +16,16 @@ import type { SelectionAnchor } from "../lib/selection";
 import { isTauriRuntime } from "../lib/env";
 import { sanitizeChatReply, sanitizeMarkdown, stripHeavyAssets } from "../lib/sanitize";
 import { clampChars } from "../lib/text";
-import { LLMClient, type LLMMessage } from "../llm/client";
+import { type LLMClient, type LLMMessage } from "../llm/client";
+import { clientForTask } from "../llm/factory";
+import { resolveChatFigure } from "../assets/visualPipeline";
 import { extractJsonPayload } from "../llm/json";
+import {
+  appendSearchResult,
+  formatSearchResultsForChat,
+  search,
+  type SearchConfig,
+} from "../search/webSearch";
 import { useSettingsStore } from "./settings";
 
 export type NotebookStatus = "loading" | "ready" | "error";
@@ -115,22 +123,151 @@ function appendMessage(
 // leak around the answer the way it does with free-form text — no fragile
 // output-scrubbing required. The reply field is extracted with the client's
 // JSON parser (which also repairs LaTeX backslashes).
-const CHAT_BEHAVIOUR = [
-  "Respond naturally and conversationally, like a helpful tutor.",
-  "For greetings, thanks, or small talk, reply warmly and briefly and invite a question about the material — never refuse these.",
-  "For questions about the course material, answer using the provided study guide; if a factual question genuinely isn't covered, say so rather than inventing facts.",
-  "Use Markdown and LaTeX ($...$) where helpful.",
-  'Respond with a SINGLE JSON object and nothing else, of exactly the form {"reply": "<your full reply to the student>"}. Put your entire answer (Markdown allowed) in the "reply" string. Do not add any other keys, prose, planning, or commentary outside the JSON.',
-];
+// Max model-driven web searches before the model must answer. Keeps the
+// tool loop bounded so a confused model can't search forever.
+const MAX_SEARCH_STEPS = 3;
+
+// Shared assistant behaviour, kept in the SYSTEM prompt. We force the model into
+// provider-level JSON mode (AskOptions.json) and ask for a {"reply": ...}
+// object: the decoder is constrained to emit JSON, so chain-of-thought can't
+// leak around the answer. When `canSearch` is true the model may instead emit a
+// {"action":"search", ...} envelope to look something up first — a model-driven
+// tool loop expressed through the same JSON channel (works on every provider,
+// unlike native function-calling which each provider formats differently).
+function chatBehaviour(canSearch: boolean): string[] {
+  const lines = [
+    "Respond naturally and conversationally, like a helpful tutor.",
+    "For greetings, thanks, or small talk, reply warmly and briefly and invite a question about the material — never refuse these.",
+    "For questions about the course material, answer using the provided study guide; if a factual question genuinely isn't covered, say so rather than inventing facts.",
+    "Use Markdown and LaTeX ($...$) where helpful.",
+    "NEVER draw diagrams, figures, or symbols as ASCII art or text art. If a diagram or visual would genuinely help (or the student asks to see one), describe the ONE most useful diagram in the \"figure\" field and a real image will be attached for you — do not attempt to render it in text.",
+  ];
+
+  if (canSearch) {
+    lines.push(
+      "You may search the web, but ONLY when the study guide clearly does not contain the answer. Prefer the study guide; do not search for things it already covers.",
+      'Respond with a SINGLE JSON object and nothing else. Either answer the student: {"reply": "<your full reply, Markdown allowed>", "figure": "<concise diagram description, or null>"}. OR, to look something up first: {"action": "search", "query": "<search query>"}. After you search you will receive results and can then answer. Output only one JSON object, no other text.',
+    );
+  } else {
+    lines.push(
+      'Respond with a SINGLE JSON object and nothing else, of exactly the form {"reply": "<your full reply to the student, Markdown allowed>", "figure": "<a concise description of the single most helpful diagram to show, or null if no visual is needed>"}. Put your entire answer in the "reply" string. Do not add any other keys, prose, planning, or commentary outside the JSON.',
+    );
+  }
+
+  return lines;
+}
+
+export interface ParsedChatReply {
+  reply: string;
+  figure: string | null;
+  // Set when the model requested a web search instead of answering.
+  searchQuery: string | null;
+}
 
 // Parses the model's JSON reply, salvaging with the heuristic scrub only if the
 // model ignored the JSON contract (e.g. a provider without enforced JSON mode).
-function extractReply(raw: string): string {
-  const parsed = extractJsonPayload<{ reply?: unknown }>(raw, "object");
-  if (parsed && typeof parsed.reply === "string" && parsed.reply.trim()) {
-    return parsed.reply.trim();
+// `figure` is a request for a visual to attach; `searchQuery` is a request to
+// look something up (resolved by the chat tool loop).
+function parseChatReply(raw: string): ParsedChatReply {
+  const parsed = extractJsonPayload<{
+    reply?: unknown;
+    figure?: unknown;
+    action?: unknown;
+    query?: unknown;
+  }>(raw, "object");
+
+  if (parsed) {
+    if (
+      parsed.action === "search" &&
+      typeof parsed.query === "string" &&
+      parsed.query.trim()
+    ) {
+      return { reply: "", figure: null, searchQuery: parsed.query.trim() };
+    }
+    if (typeof parsed.reply === "string" && parsed.reply.trim()) {
+      const candidate =
+        typeof parsed.figure === "string" ? parsed.figure.trim() : "";
+      const figure =
+        candidate &&
+        candidate.toLowerCase() !== "null" &&
+        candidate.toLowerCase() !== "none"
+          ? candidate
+          : null;
+      return { reply: parsed.reply.trim(), figure, searchQuery: null };
+    }
   }
-  return sanitizeChatReply(raw);
+  return { reply: sanitizeChatReply(raw), figure: null, searchQuery: null };
+}
+
+// Runs one chat turn with the optional model-driven web-search loop: complete →
+// if the model asks to search, run it, inject results, and re-prompt (bounded by
+// MAX_SEARCH_STEPS) → otherwise finalize (attaching a figure if requested).
+// Returns the final message content + the model that produced it.
+async function runChatTurn(params: {
+  client: LLMClient;
+  baseMessages: LLMMessage[];
+  makeSystem: (canSearch: boolean) => string;
+  sessionId: string;
+  cacheSectionId: string;
+  searchConfig: SearchConfig;
+}): Promise<{ content: string; model: string }> {
+  const { client, baseMessages, makeSystem, sessionId, cacheSectionId, searchConfig } =
+    params;
+  const canSearch = searchConfig.enabled;
+  let convo = [...baseMessages];
+
+  for (let step = 0; step <= MAX_SEARCH_STEPS; step++) {
+    // On the final allowed step, force an answer by disabling search.
+    const allowSearch = canSearch && step < MAX_SEARCH_STEPS;
+    const response = await client.complete(convo, {
+      system: makeSystem(allowSearch),
+      json: true,
+    });
+    const parsed = parseChatReply(response.content);
+
+    if (allowSearch && parsed.searchQuery) {
+      const results = await search(parsed.searchQuery, searchConfig);
+      if (isTauriRuntime()) {
+        for (const result of results) {
+          await appendSearchResult(sessionId, cacheSectionId, result);
+        }
+      }
+      convo = [
+        ...convo,
+        { role: "assistant", content: response.content },
+        { role: "user", content: formatSearchResultsForChat(results) },
+      ];
+      continue;
+    }
+
+    if (!parsed.reply.trim()) {
+      throw new Error("The model returned an empty response.");
+    }
+
+    const content = parsed.figure
+      ? `${parsed.reply}\n\n${(await attachChatFigure(sessionId, parsed.figure, client)) ?? ""}`.trimEnd()
+      : parsed.reply;
+    return { content, model: response.model };
+  }
+
+  // Unreachable: the final step always forces a non-search answer.
+  throw new Error("Chat did not produce a reply.");
+}
+
+// Resolve a requested chat visual into embeddable markdown: a real figure from
+// the session's sources when possible, an LLM-generated SVG otherwise. Never
+// throws — a failed visual must not sink the text reply.
+async function attachChatFigure(
+  sessionId: string,
+  description: string,
+  client: LLMClient,
+): Promise<string | null> {
+  try {
+    return await resolveChatFigure(sessionId, description, client);
+  } catch (error) {
+    console.warn("[notebooks] chat figure resolution failed", error);
+    return null;
+  }
 }
 
 // Maps stored chat history straight onto provider message roles. All grounding
@@ -144,10 +281,14 @@ function toLLMMessages(messages: ThreadMessage[]): LLMMessage[] {
 
 // System prompt for forked-thread chat: grounded in the highlighted quote + the
 // full section.
-function threadChatSystem(section: StudyGuideSection, quote: string): string {
+function threadChatSystem(
+  section: StudyGuideSection,
+  quote: string,
+  canSearch: boolean,
+): string {
   return [
     "You are a friendly study assistant helping a student understand a specific passage from their study guide.",
-    ...CHAT_BEHAVIOUR,
+    ...chatBehaviour(canSearch),
     "",
     `Section: "${section.title}"`,
     "",
@@ -168,7 +309,7 @@ function threadChatSystem(section: StudyGuideSection, quote: string): string {
 }
 
 // System prompt for notebook-wide chat: grounded in every section's content.
-function notebookChatSystem(doc: StudyGuideDocument): string {
+function notebookChatSystem(doc: StudyGuideDocument, canSearch: boolean): string {
   // Cap the grounding so a large guide can't push the chat request past the
   // model's context window.
   const body = clampChars(
@@ -184,7 +325,7 @@ function notebookChatSystem(doc: StudyGuideDocument): string {
 
   return [
     `You are a friendly study assistant for the course "${doc.meta.courseName || doc.meta.courseCode}".`,
-    ...CHAT_BEHAVIOUR,
+    ...chatBehaviour(canSearch),
     "Cite the relevant section titles when useful.",
     "",
     "=== STUDY GUIDE ===",
@@ -327,8 +468,8 @@ export const useNotebooksStore = create<NotebooksState>((set, get) => ({
     })),
 
   sendChatMessage: async (sessionId, text) => {
-    const config = useSettingsStore.getState().config;
-    if (!config) {
+    const client = clientForTask("chat");
+    if (!client) {
       throw new Error("No LLM is configured. Open settings to add one.");
     }
 
@@ -358,27 +499,29 @@ export const useNotebooksStore = create<NotebooksState>((set, get) => ({
     };
     await persist(history);
 
-    const client = new LLMClient(config);
+    const searchConfig = useSettingsStore.getState().search;
 
     try {
-      // Non-streamed JSON call: the reply is constrained to a JSON field so
-      // reasoning can't leak around it. The chat UI shows a typing indicator
-      // (waitingForFirstToken) until this assistant message is appended.
-      const response = await client.complete(toLLMMessages(history), {
-        system: notebookChatSystem(doc),
-        json: true,
+      // Non-streamed JSON call(s): the reply is constrained to a JSON field so
+      // reasoning can't leak around it. When web search is enabled the model may
+      // run a bounded search loop before answering. The chat UI shows a typing
+      // indicator until this assistant message is appended.
+      const { content, model } = await runChatTurn({
+        client,
+        baseMessages: toLLMMessages(history),
+        makeSystem: (canSearch) => notebookChatSystem(doc, canSearch),
+        sessionId,
+        cacheSectionId: "chat",
+        searchConfig,
       });
 
       const assistantMessage: ThreadMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: extractReply(response.content),
+        content,
         createdAt: new Date().toISOString(),
+        model,
       };
-
-      if (!assistantMessage.content.trim()) {
-        throw new Error("The model returned an empty response.");
-      }
 
       const next = [...history, assistantMessage];
       set((state) => ({
@@ -500,8 +643,8 @@ export const useNotebooksStore = create<NotebooksState>((set, get) => ({
   },
 
   sendThreadMessage: async (sessionId, threadId, text) => {
-    const config = useSettingsStore.getState().config;
-    if (!config) {
+    const client = clientForTask("chat");
+    if (!client) {
       throw new Error("No LLM is configured. Open settings to add one.");
     }
 
@@ -533,24 +676,26 @@ export const useNotebooksStore = create<NotebooksState>((set, get) => ({
     const history = [...thread.messages, userMessage];
     await persist({ ...thread, messages: history });
 
-    const client = new LLMClient(config);
+    const searchConfig = useSettingsStore.getState().search;
 
     try {
-      const response = await client.complete(toLLMMessages(history), {
-        system: threadChatSystem(section, thread.anchorQuote),
-        json: true,
+      const { content, model } = await runChatTurn({
+        client,
+        baseMessages: toLLMMessages(history),
+        makeSystem: (canSearch) =>
+          threadChatSystem(section, thread.anchorQuote, canSearch),
+        sessionId,
+        cacheSectionId: section.id,
+        searchConfig,
       });
 
       const assistantMessage: ThreadMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: extractReply(response.content),
+        content,
         createdAt: new Date().toISOString(),
+        model,
       };
-
-      if (!assistantMessage.content.trim()) {
-        throw new Error("The model returned an empty response.");
-      }
 
       set((state) => ({
         tabs: appendMessage(state.tabs, sessionId, threadId, assistantMessage),

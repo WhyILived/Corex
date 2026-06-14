@@ -158,7 +158,7 @@ Return ONLY a JSON array of ScopeSection objects — no markdown fences, no expl
   "requiredConcepts": string[],
   "requiredFormulas": string[],
   "definedTerms": [{ "term": string, "definition": string }],
-  "examQuestions": [{ "id": string, "text": string, "marks": number, "topic": string, "concepts": string[], "hasSolution": boolean }],
+  "examQuestionIds": string[],
   "sourceHints": string[],
   "dependencies": string[]
 }]
@@ -176,7 +176,7 @@ Topic weights from exam marks:
 ${weightsDigest}
 ${userFocus}
 Rules:
-- ALL exam questions must be assigned to exactly one section.
+- ALL exam questions must be assigned to exactly one section. Reference each by its id (the value inside Q[...] in the Exams list) in "examQuestionIds" — do NOT copy question text; the full question is reconstructed from the id.
 - Combine outline topics with similar slide sections into one section where appropriate.
 - requiredConcepts should be exhaustive for each section.
 - depth rules:
@@ -374,17 +374,65 @@ function buildMeta(
   };
 }
 
-function normalizeScopeSections(sections: ScopeSection[]): ScopeSection[] {
-  return sections.map((section) => ({
-    ...section,
-    weekOrUnit: section.weekOrUnit ?? undefined,
-    requiredConcepts: section.requiredConcepts ?? [],
-    requiredFormulas: section.requiredFormulas ?? [],
-    definedTerms: section.definedTerms ?? [],
-    examQuestions: section.examQuestions ?? [],
-    sourceHints: section.sourceHints ?? [],
-    dependencies: section.dependencies ?? [],
-  }));
+// What the model returns: identical to ScopeSection except exam questions are
+// referenced by id (examQuestionIds) instead of echoed in full. Keeping the
+// heavy question text out of the model's output is what keeps the synthesis
+// response from overflowing the output-token limit and truncating mid-JSON.
+interface SynthSection {
+  id: string;
+  title: string;
+  weightPercent: number;
+  depth: SectionDepth;
+  weekOrUnit: string | null;
+  requiredConcepts?: string[];
+  requiredFormulas?: string[];
+  definedTerms?: DefinedTerm[];
+  examQuestionIds?: string[];
+  // Tolerated for backward/loose model output: full question objects.
+  examQuestions?: ExamQuestion[];
+  sourceHints?: string[];
+  dependencies?: string[];
+}
+
+function buildQuestionIndex(exams: ExamExtraction[]): Map<string, ExamQuestion> {
+  const byId = new Map<string, ExamQuestion>();
+  for (const exam of exams) {
+    for (const question of exam.questions) {
+      byId.set(question.id, question);
+    }
+  }
+  return byId;
+}
+
+// Hydrates the model's id-referenced sections into full ScopeSections, looking
+// up each exam question by id. Unknown ids are dropped (orphan assignment later
+// re-homes any question the model missed).
+function hydrateScopeSections(
+  raw: SynthSection[],
+  questionById: Map<string, ExamQuestion>,
+): ScopeSection[] {
+  return raw.map((section) => {
+    const fromIds = (section.examQuestionIds ?? [])
+      .map((id) => questionById.get(id))
+      .filter((q): q is ExamQuestion => Boolean(q));
+    // Fall back to any full questions the model emitted anyway.
+    const examQuestions =
+      fromIds.length > 0 ? fromIds : section.examQuestions ?? [];
+
+    return {
+      id: section.id,
+      title: section.title,
+      weightPercent: section.weightPercent,
+      depth: section.depth,
+      weekOrUnit: section.weekOrUnit ?? undefined,
+      requiredConcepts: section.requiredConcepts ?? [],
+      requiredFormulas: section.requiredFormulas ?? [],
+      definedTerms: section.definedTerms ?? [],
+      examQuestions,
+      sourceHints: section.sourceHints ?? [],
+      dependencies: section.dependencies ?? [],
+    };
+  });
 }
 
 export async function synthesizeScope(
@@ -407,8 +455,10 @@ export async function synthesizeScope(
     userPrompt,
   );
 
-  let sections = normalizeScopeSections(
-    await llm.askJSON<ScopeSection[]>(prompt),
+  const questionById = buildQuestionIndex(exams);
+  const sections = hydrateScopeSections(
+    await llm.withTask("synthesize").askJSON<SynthSection[]>(prompt),
+    questionById,
   );
 
   assignOrphanQuestions(sections, exams);

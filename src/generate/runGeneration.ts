@@ -1,10 +1,21 @@
-import { AbortError, isAbortError, LLMClient, type LLMConfig } from "../llm/client";
+import { AbortError, isAbortError } from "../llm/client";
+import { clientFor, type LLMPlan } from "../llm/factory";
 import { runScopePipeline, type ScopePipelineInput } from "../scope/pipeline";
 import { runOrchestrator } from "../orchestrator/orchestrator";
 import { runVisualPipeline } from "../assets/visualPipeline";
 import { assembleStudyGuide } from "../assembler/assembler";
+import {
+  buildAllSectionContexts,
+  type SearchConfig,
+  type SectionSearchContext,
+} from "../search/webSearch";
 
-export type GenerationPhase = "scope" | "orchestrate" | "visualize" | "assemble";
+export type GenerationPhase =
+  | "scope"
+  | "search"
+  | "orchestrate"
+  | "visualize"
+  | "assemble";
 
 export interface GenerationProgress {
   phase: GenerationPhase;
@@ -29,11 +40,14 @@ function throwIfAborted(signal?: AbortSignal): void {
 // checked between stages.
 export async function runGeneration(
   input: ScopePipelineInput,
-  config: LLMConfig,
+  plan: LLMPlan,
   onProgress: (progress: GenerationProgress) => void,
   signal?: AbortSignal,
+  searchConfig?: SearchConfig,
 ): Promise<GenerationResult> {
-  const llm = new LLMClient(config, signal);
+  // Base client; each pipeline stage narrows it to its task via withTask(),
+  // which (in auto mode) re-ranks the available models for that task.
+  const llm = clientFor(plan, "general", signal);
 
   throwIfAborted(signal);
   const scope = await runScopePipeline(
@@ -49,6 +63,33 @@ export async function runGeneration(
     signal,
   );
 
+  // Optional web-search enrichment: gather supplementary context per section
+  // before authoring. Non-fatal — a search failure must never block generation.
+  let searchContexts: Map<string, SectionSearchContext> | undefined;
+  if (searchConfig?.enabled) {
+    throwIfAborted(signal);
+    try {
+      const cache = await buildAllSectionContexts(
+        scope.scopeDocument,
+        searchConfig,
+        scope.sessionId,
+        (done, total) =>
+          onProgress({
+            phase: "search",
+            message: "Searching the web for supplementary context…",
+            done,
+            total,
+          }),
+      );
+      searchContexts = new Map(
+        cache.sections.map((section) => [section.sectionId, section]),
+      );
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      console.warn("[generation] web search enrichment failed, continuing without it", error);
+    }
+  }
+
   throwIfAborted(signal);
   await runOrchestrator(
     scope.sessionId,
@@ -62,6 +103,7 @@ export async function runGeneration(
         total: update.totalSections,
       }),
     signal,
+    searchContexts,
   );
 
   // Resolve {{figure}} placeholders into images / SVG diagrams. Non-fatal: a

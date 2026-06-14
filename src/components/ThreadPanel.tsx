@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNotebooksStore, type NotebookTab } from "../store/notebooks";
-import { useSettingsStore } from "../store/settings";
+import { useLLMReady } from "../llm/factory";
 import { Markdown } from "./Markdown";
 import { GitBranchIcon, SendIcon } from "./icons";
 
@@ -11,7 +11,7 @@ interface ThreadPanelProps {
 export function ThreadPanel({ tab }: ThreadPanelProps) {
   const closeThread = useNotebooksStore((s) => s.closeThread);
   const sendThreadMessage = useNotebooksStore((s) => s.sendThreadMessage);
-  const config = useSettingsStore((s) => s.config);
+  const ready = useLLMReady();
 
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -84,7 +84,14 @@ export function ThreadPanel({ tab }: ThreadPanelProps) {
             className={`thread-msg thread-msg-${message.role}`}
           >
             {message.role === "assistant" ? (
-              <Markdown source={message.content} idPrefix={message.id} />
+              <>
+                <Markdown source={message.content} idPrefix={message.id} />
+                {message.model && (
+                  <span className="model-badge" title="Model that generated this reply">
+                    {message.model}
+                  </span>
+                )}
+              </>
             ) : (
               message.content
             )}
@@ -104,7 +111,7 @@ export function ThreadPanel({ tab }: ThreadPanelProps) {
       {error && <div className="thread-error">{error}</div>}
 
       <div className="thread-input">
-        {config ? (
+        {ready ? (
           <>
             <textarea
               ref={inputRef}

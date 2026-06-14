@@ -7,6 +7,7 @@ export type LLMProvider =
   | "anthropic"
   | "openai"
   | "gemini"
+  | "groq"
   | "ollama"
   | "openrouter";
 

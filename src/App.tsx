@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useThemeStore } from "./store/theme";
 import { useNotebooksStore } from "./store/notebooks";
+import { useSettingsStore } from "./store/settings";
+import { useModelsStore } from "./store/models";
 import { TabBar } from "./components/TabBar";
 import { NotebookPage } from "./components/NotebookPage";
 import { SessionPicker } from "./components/SessionPicker";
@@ -19,6 +21,15 @@ export function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
+
+  // Refresh the available-models lists once on launch so auto-selection reflects
+  // what each saved key can currently reach.
+  useEffect(() => {
+    const credentials = useSettingsStore.getState().credentials;
+    if (credentials.length > 0) {
+      void useModelsStore.getState().syncTo(credentials);
+    }
+  }, []);
 
   return (
     <div className="app-shell">

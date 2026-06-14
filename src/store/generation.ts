@@ -1,6 +1,7 @@
 import { create } from "zustand";
-import type { LLMConfig } from "../llm/client";
 import { isAbortError } from "../llm/client";
+import type { LLMPlan } from "../llm/factory";
+import type { SearchConfig } from "../search/webSearch";
 import {
   runGeneration,
   type GenerationPhase,
@@ -37,15 +38,23 @@ export interface GenerationJob {
 // Relative cost of each phase, used to turn per-phase done/total into a single
 // smooth 0-100 bar instead of the old per-phase "0/1" counter.
 const PHASE_WEIGHTS: Record<GenerationPhase, number> = {
-  scope: 0.25,
-  orchestrate: 0.5,
+  scope: 0.22,
+  search: 0.08,
+  orchestrate: 0.45,
   visualize: 0.15,
   assemble: 0.1,
 };
-const PHASE_ORDER: GenerationPhase[] = ["scope", "orchestrate", "visualize", "assemble"];
+const PHASE_ORDER: GenerationPhase[] = [
+  "scope",
+  "search",
+  "orchestrate",
+  "visualize",
+  "assemble",
+];
 
 export const PHASE_LABELS: Record<GenerationPhase, string> = {
   scope: "Reading sources",
+  search: "Searching the web",
   orchestrate: "Writing & verifying sections",
   visualize: "Resolving figures",
   assemble: "Assembling",
@@ -66,7 +75,10 @@ interface JobInput {
   files: File[];
   prompt?: string;
   sessionId: string;
-  config: LLMConfig;
+  // Captured at enqueue time so a queued job uses the settings it was started
+  // with, even if the user changes providers while it waits.
+  plan: LLMPlan;
+  searchConfig?: SearchConfig;
 }
 
 interface GenerationState {
@@ -110,10 +122,11 @@ export const useGenerationStore = create<GenerationState>((set, get) => {
         try {
           await runGeneration(
             { files: input.files, userPrompt: input.prompt, sessionId: input.sessionId },
-            input.config,
+            input.plan,
             (progress) =>
               patchJob(next.id, { progress, percent: overallPercent(progress) }),
             controller.signal,
+            input.searchConfig,
           );
           patchJob(next.id, { status: "done", percent: 100 });
           // Open the finished notebook in a tab.

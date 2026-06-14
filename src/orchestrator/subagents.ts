@@ -216,6 +216,7 @@ Use ONLY the following source material. Cover every required concept, include ev
 ${groundTruth}`;
 
   const raw = await llm
+    .withTask("generate")
     .withConfig({ temperature: 0.3 })
     .ask(prompt, { ...opts, system: GENERATOR_SYSTEM });
   return sanitizeMarkdown(raw);
@@ -250,6 +251,7 @@ Return ONLY this JSON object:
 Scoring (0-100): deduct for each required concept/formula/term not properly covered, for any claim unsupported by the source material ("unsupported_claim"), for factual errors ("inaccurate"), for fewer than ${rubric.minimumExamples} worked example(s), and for depth below "${rubric.depth}". Set "pass" to true only if score >= ${PASS_SCORE_THRESHOLD} and there are no "inaccurate" or "unsupported_claim" failures.`;
 
   return llm
+    .withTask("verify")
     .withConfig({ temperature: 0 })
     .askStructured<Verdict>(prompt, normalizeVerdict, {
       ...opts,
@@ -292,6 +294,7 @@ CURRENT DRAFT:
 ${content}`;
 
   const raw = await llm
+    .withTask("fix")
     .withConfig({ temperature: 0 })
     .ask(prompt, { ...opts, system: FIXER_SYSTEM });
   return sanitizeMarkdown(raw);

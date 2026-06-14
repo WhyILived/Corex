@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNotebooksStore, type NotebookTab } from "../store/notebooks";
-import { useSettingsStore } from "../store/settings";
+import { useLLMReady } from "../llm/factory";
 import { Markdown } from "./Markdown";
 
 interface ChatPageProps {
@@ -9,7 +9,7 @@ interface ChatPageProps {
 
 export function ChatPage({ tab }: ChatPageProps) {
   const sendChatMessage = useNotebooksStore((s) => s.sendChatMessage);
-  const config = useSettingsStore((s) => s.config);
+  const ready = useLLMReady();
 
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -58,7 +58,14 @@ export function ChatPage({ tab }: ChatPageProps) {
               className={`chat-msg chat-msg-${message.role}`}
             >
               {message.role === "assistant" ? (
-                <Markdown source={message.content} idPrefix={message.id} />
+                <>
+                  <Markdown source={message.content} idPrefix={message.id} />
+                  {message.model && (
+                    <span className="model-badge" title="Model that generated this reply">
+                      {message.model}
+                    </span>
+                  )}
+                </>
               ) : (
                 message.content
               )}
@@ -79,7 +86,7 @@ export function ChatPage({ tab }: ChatPageProps) {
       {error && <div className="chat-error">{error}</div>}
 
       <div className="chat-composer">
-        {config ? (
+        {ready ? (
           <>
             <textarea
               value={draft}

@@ -326,9 +326,9 @@ async function extractSlidesChunk(
     .join("\n\n");
 
   if (text.trim()) {
-    const raw = await llm.ask(
-      buildSlidesTextPrompt(text, chunkIndex, totalChunks),
-    );
+    const raw = await llm
+      .withTask("extract-text")
+      .ask(buildSlidesTextPrompt(text, chunkIndex, totalChunks));
     sections.push(...parseSlideSections(raw));
   }
 
@@ -353,7 +353,7 @@ async function extractSlidesChunk(
       batch.map((page) => page.pageNumber),
     );
     try {
-      const raw = await llm.askWithImages(prompt, images, {
+      const raw = await llm.withTask("extract-vision").askWithImages(prompt, images, {
         system: EXTRACTION_SYSTEM,
       });
       sections.push(...parseSlideSections(raw));
@@ -381,6 +381,7 @@ export async function extractOutline(
 ): Promise<OutlineExtraction> {
   const text = clampChars(documentText(doc), OUTLINE_MAX_CHARS, `outline ${doc.filename}`);
   return llm
+    .withTask("extract-text")
     .withConfig({ maxTokens: EXTRACTION_MAX_TOKENS })
     .askJSON<OutlineExtraction>(buildOutlinePrompt(text));
 }
@@ -520,7 +521,7 @@ export async function extractExam(
       data: page.imageData!,
       mimeType: page.mimeType,
     }));
-    const raw = await extractor.askWithImages(prompt, images, {
+    const raw = await extractor.withTask("extract-vision").askWithImages(prompt, images, {
       system: EXTRACTION_SYSTEM,
     });
     const parsed = parseJsonResponse<{
@@ -531,7 +532,7 @@ export async function extractExam(
     questions = normalizeExamQuestions(parsed.questions);
   } else {
     const text = clampChars(documentText(doc), EXAM_TEXT_MAX_CHARS, `exam ${doc.filename}`);
-    const parsed = await extractor.askJSON<{
+    const parsed = await extractor.withTask("extract-text").askJSON<{
       totalMarks: number | null;
       questions: ExamQuestion[];
     }>(buildExamTextPrompt(text, year, examType));

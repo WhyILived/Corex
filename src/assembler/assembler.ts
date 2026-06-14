@@ -69,6 +69,9 @@ export interface ThreadMessage {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  // The model that produced an assistant reply (shown as a badge). Useful in
+  // auto mode where each reply may come from a different model.
+  model?: string;
 }
 
 export interface SectionAnalytics {

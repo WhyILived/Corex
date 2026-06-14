@@ -7,9 +7,15 @@
 
 import { ensureWebStreams } from "../lib/streams";
 import { extractJsonPayload } from "./json";
+import {
+  selectForTask,
+  type AvailableModel,
+  type LLMTask,
+} from "./autoselect";
+import { isChatCompletionModel } from "./modelFilter";
 
 export interface LLMConfig {
-  provider: "anthropic" | "openai" | "gemini" | "ollama" | "openrouter";
+  provider: "anthropic" | "openai" | "gemini" | "groq" | "ollama" | "openrouter";
   apiKey: string;
   model: string;
   maxTokens?: number;
@@ -64,6 +70,7 @@ export const DEFAULT_MODELS = {
   // Best free vision model on OpenRouter for document extraction: dense 31B,
   // image input, 256K context, and doesn't emit a reasoning trace by default.
   openrouter: "google/gemma-4-31b-it:free",
+  groq: "llama-3.3-70b-versatile",
 } as const;
 
 const DEFAULT_MAX_TOKENS = 8192;
@@ -72,6 +79,7 @@ const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const DEFAULT_GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
 // Default JSON-mode system prompt: applied to askJSON/askStructured calls that
 // don't supply their own, so the model returns a bare JSON value.
@@ -83,6 +91,7 @@ function defaultBaseUrl(provider: LLMConfig["provider"]): string {
   if (provider === "ollama") return DEFAULT_OLLAMA_BASE_URL;
   if (provider === "openai") return DEFAULT_OPENAI_BASE_URL;
   if (provider === "openrouter") return DEFAULT_OPENROUTER_BASE_URL;
+  if (provider === "groq") return DEFAULT_GROQ_BASE_URL;
   return "";
 }
 
@@ -144,13 +153,76 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-// Retries a request thunk on transient failures (429 / 5xx / network errors)
-// with exponential backoff + jitter. Aborts and non-retryable errors propagate
+// Default retry predicate: transient transport failures (429 / 5xx) and
+// network errors (fetch throws TypeError) are worth retrying.
+function defaultRetryable(error: unknown): boolean {
+  return error instanceof LLMError ? error.isRetryable : error instanceof TypeError;
+}
+
+// A provider/model is "exhausted" when it is rate-limited, out of
+// quota/credits, or the request overflowed its context window. These are the
+// signals to stop hammering one model and fail over to the next candidate.
+function isExhaustionError(error: unknown): boolean {
+  if (!(error instanceof LLMError)) return false;
+  if (error.statusCode === 429 || error.statusCode === 402) return true;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("insufficient_quota") ||
+    message.includes("quota") ||
+    message.includes("billing") ||
+    message.includes("credit") ||
+    message.includes("rate limit") ||
+    message.includes("rate_limit") ||
+    message.includes("too many requests") ||
+    message.includes("context_length_exceeded") ||
+    message.includes("context length") ||
+    message.includes("maximum context") ||
+    message.includes("reduce the length")
+  );
+}
+
+// In multi-candidate (auto) mode we don't burn the retry budget on an
+// exhausted model — we fail over immediately — but transient 5xx/network blips
+// on the current model are still worth a quick retry.
+function retryableExceptExhaustion(error: unknown): boolean {
+  return defaultRetryable(error) && !isExhaustionError(error);
+}
+
+// Whether the model/API combo is incompatible with our adapter (wrong endpoint,
+// Interactions-only agent, etc.) — fail over to the next candidate in auto mode.
+function isIncompatibleModelError(error: unknown): boolean {
+  if (!(error instanceof LLMError)) return false;
+  if (error.statusCode !== 400 && error.statusCode !== 404) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("interactions api") ||
+    message.includes("not supported for generatecontent") ||
+    message.includes("is not supported") ||
+    message.includes("does not support")
+  );
+}
+
+// Whether a failure on one candidate should trigger trying the next model:
+// exhaustion, auth problems (a bad key for one provider shouldn't sink a run
+// when others work), server errors, network failures, and incompatible models.
+function shouldFailover(error: unknown): boolean {
+  if (error instanceof TypeError) return true;
+  if (!(error instanceof LLMError)) return false;
+  if (isIncompatibleModelError(error)) return true;
+  const status = error.statusCode;
+  if (status === 401 || status === 403 || status === 429 || status === 402) return true;
+  if (status >= 500) return true;
+  return isExhaustionError(error);
+}
+
+// Retries a request thunk on transient failures (per `retryable`) with
+// exponential backoff + jitter. Aborts and non-retryable errors propagate
 // immediately.
 async function withRetry<T>(
   fn: () => Promise<T>,
   maxRetries: number,
   signal?: AbortSignal,
+  retryable: (error: unknown) => boolean = defaultRetryable,
 ): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -161,9 +233,7 @@ async function withRetry<T>(
       if (isAbortError(error)) throw error;
       lastError = error;
 
-      const retryable =
-        error instanceof LLMError ? error.isRetryable : error instanceof TypeError;
-      if (!retryable || attempt === maxRetries) throw error;
+      if (!retryable(error) || attempt === maxRetries) throw error;
 
       const backoff = Math.min(8000, 500 * 2 ** attempt) + Math.floor(attempt * 137);
       console.warn(
@@ -572,6 +642,8 @@ function toOpenAIMessage(message: LLMMessage) {
 
 const openaiAdapter = createOpenAIAdapter((config) => config.baseUrl, true);
 
+const groqAdapter = createOpenAIAdapter((config) => config.baseUrl, true);
+
 // OpenRouter speaks the OpenAI chat-completions dialect (including image_url
 // content blocks). The attribution headers are optional but recommended.
 const openrouterAdapter = createOpenAIAdapter(
@@ -724,24 +796,70 @@ const ADAPTERS: Record<LLMConfig["provider"], LLMAdapter> = {
   anthropic: anthropicAdapter,
   openai: openaiAdapter,
   gemini: geminiAdapter,
+  groq: groqAdapter,
   ollama: ollamaAdapter,
   openrouter: openrouterAdapter,
 };
 
+// How a client decides which model(s) to use:
+//   - manual: exactly one user-chosen config (today's behavior; failover is a
+//     no-op since there is a single candidate).
+//   - auto:   a pool of available models, ranked per task at call time, with
+//     failover down the ranking when a model is exhausted.
+type ClientPlan =
+  | { kind: "manual"; config: LLMConfig }
+  | { kind: "auto"; available: AvailableModel[]; task: LLMTask };
+
 export class LLMClient {
-  private readonly config: ResolvedLLMConfig;
+  private plan: ClientPlan;
+  // Per-call config overrides (e.g. temperature/maxTokens) applied to every
+  // candidate, accumulated via withConfig().
+  private overrides: Partial<LLMConfig>;
   // Default signal applied to every call made through this client; per-call
   // opts.signal overrides it. Set via withSignal() so a whole pipeline shares
   // one cancellation source.
-  private readonly defaultSignal?: AbortSignal;
+  private defaultSignal?: AbortSignal;
 
   constructor(config: LLMConfig, defaultSignal?: AbortSignal) {
-    this.config = resolveConfig(config);
+    this.plan = { kind: "manual", config };
+    this.overrides = {};
     this.defaultSignal = defaultSignal;
   }
 
+  // Auto mode: rank `available` models per task and fail over across them.
+  static auto(
+    available: AvailableModel[],
+    task: LLMTask = "general",
+    defaultSignal?: AbortSignal,
+  ): LLMClient {
+    return LLMClient.make({ kind: "auto", available, task }, {}, defaultSignal);
+  }
+
+  private static make(
+    plan: ClientPlan,
+    overrides: Partial<LLMConfig>,
+    signal?: AbortSignal,
+  ): LLMClient {
+    const client = new LLMClient({ provider: "openai", apiKey: "", model: "" });
+    client.plan = plan;
+    client.overrides = overrides;
+    client.defaultSignal = signal;
+    return client;
+  }
+
+  // The ranked candidate configs for the active plan/task, with accumulated
+  // overrides applied. Empty only when auto mode has no usable model.
+  private resolvedCandidates(): ResolvedLLMConfig[] {
+    const base =
+      this.plan.kind === "manual"
+        ? [this.plan.config]
+        : selectForTask(this.plan.available, this.plan.task);
+    return base.map((config) => resolveConfig({ ...config, ...this.overrides }));
+  }
+
   get provider(): LLMConfig["provider"] {
-    return this.config.provider;
+    if (this.plan.kind === "manual") return this.plan.config.provider;
+    return selectForTask(this.plan.available, this.plan.task)[0]?.provider ?? "openai";
   }
 
   private signalFor(opts?: AskOptions): AbortSignal | undefined {
@@ -750,18 +868,58 @@ export class LLMClient {
 
   async complete(messages: LLMMessage[], opts: AskOptions = {}): Promise<LLMResponse> {
     const signal = this.signalFor(opts);
-    return withRetry(
-      () => ADAPTERS[this.config.provider].complete(this.config, messages, { ...opts, signal }),
-      this.config.maxRetries,
-      signal,
-    );
+    const candidates = this.resolvedCandidates();
+    if (candidates.length === 0) {
+      throw new LLMError(
+        "No model is available for this task. Add an API key (and ensure its models were discovered) in settings.",
+        0,
+      );
+    }
+
+    const multi = candidates.length > 1;
+    let lastError: unknown;
+
+    for (let index = 0; index < candidates.length; index++) {
+      const config = candidates[index]!;
+      if (!isChatCompletionModel(config.provider, config.model)) {
+        lastError = new LLMError(
+          `Model "${config.model}" is not supported for chat/completion (requires a different API).`,
+          400,
+        );
+        if (index < candidates.length - 1) continue;
+        throw lastError;
+      }
+      try {
+        return await withRetry(
+          () => ADAPTERS[config.provider].complete(config, messages, { ...opts, signal }),
+          config.maxRetries,
+          signal,
+          // Don't waste the retry budget on an exhausted model when we can fail
+          // over; still retry transient blips on the current one.
+          multi ? retryableExceptExhaustion : undefined,
+        );
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        lastError = error;
+        const hasNext = index < candidates.length - 1;
+        if (hasNext && shouldFailover(error)) {
+          console.warn(
+            `[llm] ${config.provider}/${config.model} unavailable (${
+              error instanceof Error ? error.message.slice(0, 120) : String(error)
+            }); failing over to next model`,
+          );
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw lastError;
   }
 
-  // Streams the response, invoking onDelta with each text fragment as it
-  // arrives. Falls back to a one-shot complete() when the stream is empty or
-  // unreadable (common in WKWebView before the ReadableStream polyfill loads).
-  // The stream attempt itself is not retried (partial deltas would duplicate);
-  // the complete() fallback carries its own retry.
+  // Streams from the top-ranked candidate, invoking onDelta with each fragment.
+  // Falls back to complete() (which carries full failover) when the stream is
+  // empty or unreadable (common in WKWebView before the ReadableStream polyfill
+  // loads). The stream attempt itself is not retried (partial deltas duplicate).
   async stream(
     messages: LLMMessage[],
     onDelta: StreamDeltaCallback,
@@ -769,18 +927,20 @@ export class LLMClient {
   ): Promise<LLMResponse> {
     ensureWebStreams();
     const signal = this.signalFor(opts);
-    const adapter = ADAPTERS[this.config.provider];
-    try {
-      const streamed = await adapter.stream(this.config, messages, onDelta, {
-        ...opts,
-        signal,
-      });
-      if (streamed.content.trim()) {
-        return streamed;
+    const config = this.resolvedCandidates()[0];
+    if (config) {
+      try {
+        const streamed = await ADAPTERS[config.provider].stream(config, messages, onDelta, {
+          ...opts,
+          signal,
+        });
+        if (streamed.content.trim()) {
+          return streamed;
+        }
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        console.warn("[llm] stream failed, falling back to complete", error);
       }
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      console.warn("[llm] stream failed, falling back to complete", error);
     }
 
     const completed = await this.complete(messages, opts);
@@ -858,23 +1018,34 @@ export class LLMClient {
     return response.content;
   }
 
+  // Clone with additional config overrides (applied to every candidate).
   withConfig(overrides: Partial<LLMConfig>): LLMClient {
-    return new LLMClient({ ...this.toConfig(), ...overrides }, this.defaultSignal);
+    return LLMClient.make(
+      this.plan,
+      { ...this.overrides, ...overrides },
+      this.defaultSignal,
+    );
+  }
+
+  // Clone re-ranked for a specific task. No-op in manual mode (single model).
+  withTask(task: LLMTask): LLMClient {
+    if (this.plan.kind === "manual") return this;
+    return LLMClient.make(
+      { kind: "auto", available: this.plan.available, task },
+      this.overrides,
+      this.defaultSignal,
+    );
   }
 
   // Returns a client whose calls are cancelled when `signal` aborts. Used to
   // bind one cancellation source to an entire generation pipeline.
   withSignal(signal: AbortSignal): LLMClient {
-    return new LLMClient(this.toConfig(), signal);
+    return LLMClient.make(this.plan, this.overrides, signal);
   }
 
   async ping(): Promise<{ ok: boolean; models: string[] }> {
-    return ADAPTERS[this.config.provider].ping(this.config);
-  }
-
-  private toConfig(): LLMConfig {
-    const { provider, apiKey, model, maxTokens, temperature, baseUrl, maxRetries } =
-      this.config;
-    return { provider, apiKey, model, maxTokens, temperature, baseUrl, maxRetries };
+    const config = this.resolvedCandidates()[0];
+    if (!config) return { ok: false, models: [] };
+    return ADAPTERS[config.provider].ping(config);
   }
 }

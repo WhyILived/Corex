@@ -22,6 +22,10 @@ import {
   verifySection,
   type Verdict,
 } from "./subagents";
+import {
+  formatContextForPrompt,
+  type SectionSearchContext,
+} from "../search/webSearch";
 import type { ScopeDocument, ScopeSection } from "../types";
 
 type TaskStatus =
@@ -317,6 +321,7 @@ async function runSectionTask(
   onProgress: OrchestratorProgressCallback,
   totalSections: number,
   doneSections: number,
+  searchContext?: SectionSearchContext,
 ): Promise<void> {
   const sectionDir = await getSectionDir(sessionId, task.sectionId);
   const contentPath = joinPath(sectionDir, "content.md");
@@ -324,7 +329,12 @@ async function runSectionTask(
   const finalPath = joinPath(sectionDir, "final.md");
 
   const rubric = buildRubric(section);
-  const groundTruth = buildGroundTruth(section, scope);
+  // Web search context (when present) is appended as clearly-labeled
+  // supplementary material; the ground truth from uploaded sources leads.
+  const webBlock = searchContext ? formatContextForPrompt(searchContext) : "";
+  const groundTruth = webBlock
+    ? `${buildGroundTruth(section, scope)}\n\n${webBlock}`
+    : buildGroundTruth(section, scope);
   const opts = { signal };
 
   try {
@@ -379,6 +389,7 @@ export async function runOrchestrator(
   llm: LLMClient,
   onProgress: OrchestratorProgressCallback,
   signal?: AbortSignal,
+  searchContexts?: Map<string, SectionSearchContext>,
 ): Promise<OrchestratorResult> {
   const sessionDir = await getSessionDir(sessionId);
   const existingGraph = await loadTaskGraph(sessionDir);
@@ -428,6 +439,7 @@ export async function runOrchestrator(
             onProgress,
             totalSections,
             doneSections,
+            searchContexts?.get(task.sectionId),
           ),
       ),
       graph.concurrency,

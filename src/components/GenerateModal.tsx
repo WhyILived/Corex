@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { buildPlan, useLLMReady } from "../llm/factory";
 import { useSettingsStore } from "../store/settings";
 import {
   PHASE_LABELS,
@@ -20,7 +21,7 @@ function formatSize(bytes: number): string {
 }
 
 export function GenerateModal({ onClose }: GenerateModalProps) {
-  const config = useSettingsStore((s) => s.config);
+  const ready = useLLMReady();
   const enqueue = useGenerationStore((s) => s.enqueue);
   const cancel = useGenerationStore((s) => s.cancel);
   const dismiss = useGenerationStore((s) => s.dismiss);
@@ -62,13 +63,16 @@ export function GenerateModal({ onClose }: GenerateModalProps) {
     setFiles((current) => current.filter((_, i) => i !== index));
 
   const start = () => {
-    if (files.length === 0 || running || !config) return;
+    if (files.length === 0 || running || !ready) return;
+    const plan = buildPlan();
+    if (!plan) return;
     sessionIdRef.current ??= Date.now().toString(36);
     const id = enqueue({
       files,
       prompt: prompt.trim() || undefined,
       sessionId: sessionIdRef.current,
-      config,
+      plan,
+      searchConfig: useSettingsStore.getState().search,
     });
     setJobId(id);
   };
@@ -111,13 +115,13 @@ export function GenerateModal({ onClose }: GenerateModalProps) {
           </p>
         )}
 
-        {tauri && !config && (
+        {tauri && !ready && (
           <p className="muted">
             Configure an LLM in settings (gear icon) before generating.
           </p>
         )}
 
-        {tauri && config && !job && (
+        {tauri && ready && !job && (
           <>
             <div
               className={`dropzone${dragging ? " dropzone-active" : ""}`}

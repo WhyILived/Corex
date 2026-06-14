@@ -146,18 +146,67 @@ export function resolvePlaceholders(
       continue;
     }
 
-    let replacement: string;
-    if (figure.source === "svg") {
-      replacement = `${figure.imageData}\n\n*${figure.caption}*`;
-    } else {
-      const dataUri = `data:${figure.mimeType};base64,${figure.imageData}`;
-      replacement = `![${figure.caption}](${dataUri})`;
-    }
-
-    out = out.slice(0, position) + replacement + out.slice(end);
+    out = out.slice(0, position) + figureToMarkdown(figure) + out.slice(end);
   }
 
   return out;
+}
+
+// Render a resolved figure as markdown our node parser understands: raw <svg>
+// for generated diagrams, a base64 data-URI image for cropped source figures.
+export function figureToMarkdown(figure: FigureEntry): string {
+  if (figure.source === "svg") {
+    return `${figure.imageData}\n\n*${figure.caption}*`;
+  }
+  const dataUri = `data:${figure.mimeType};base64,${figure.imageData}`;
+  return `![${figure.caption}](${dataUri})`;
+}
+
+// Load a session's persisted figure index (built during generation), or null if
+// none exists / not running under Tauri.
+export async function loadFigureIndex(
+  sessionId: string,
+): Promise<FigureIndex | null> {
+  try {
+    const path = await join(
+      await getSessionDir(sessionId),
+      ASSETS_DIR,
+      FIGURE_INDEX_FILE,
+    );
+    if (!(await exists(path))) return null;
+    const parsed = JSON.parse(await readTextFile(path)) as FigureIndex;
+    return Array.isArray(parsed.figures) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Chat-time figure resolution: prefer a real figure cropped from the session's
+// sources, fall back to a generated SVG. Returns markdown to embed, or null.
+export async function resolveChatFigure(
+  sessionId: string,
+  description: string,
+  llm: LLMClient,
+  opts: AskOptions = {},
+): Promise<string | null> {
+  const trimmed = description.trim();
+  if (!trimmed) return null;
+
+  const index = await loadFigureIndex(sessionId);
+  if (index && index.figures.length > 0) {
+    const match = await matchFigureFromIndex(
+      index,
+      trimmed,
+      [],
+      new Set<string>(),
+      llm,
+      opts,
+    );
+    if (match) return figureToMarkdown(match);
+  }
+
+  const svg = await generateSVGFigure(trimmed, trimmed, "", llm, opts);
+  return svg ? figureToMarkdown(svg) : null;
 }
 
 // --- Image cropping (renderer canvas) ---
@@ -280,7 +329,9 @@ async function detectFiguresInBatch(
     `"yes" or "no", in page order. No other text.`;
 
   try {
-    const raw = await llm.askWithImages(prompt, batch.map(imageBlock), opts);
+    const raw = await llm
+      .withTask("visual-judge")
+      .askWithImages(prompt, batch.map(imageBlock), opts);
     const parsed = extractJsonPayload<string[]>(raw, "array");
     if (!parsed) return batch.map(() => false);
     return batch.map((_, i) =>
@@ -319,7 +370,9 @@ async function extractFigureMeta(
     `Return ONLY a JSON array of exactly ${batch.length} objects, in page order.`;
 
   try {
-    const raw = await llm.askWithImages(prompt, batch.map(imageBlock), opts);
+    const raw = await llm
+      .withTask("visual-judge")
+      .askWithImages(prompt, batch.map(imageBlock), opts);
     const parsed = extractJsonPayload<PageFigureMeta[]>(raw, "array");
     if (!parsed) return batch.map(() => null);
     return batch.map((_, i) => {
@@ -485,27 +538,32 @@ export async function matchFigureFromIndex(
 export async function generateSVGFigure(
   description: string,
   sectionTitle: string,
-  surroundingText: string,
+  _surroundingText: string,
   llm: LLMClient,
   opts: AskOptions,
 ): Promise<FigureEntry | null> {
-  const context = surroundingText.slice(0, 200);
   const prompt =
-    `Generate a clean technical SVG diagram for a study guide.\n\n` +
-    `Figure description: ${description}\n` +
-    `Section title (for context): ${sectionTitle}\n` +
-    `Surrounding text (for context): ${context}\n\n` +
-    `Strict requirements:\n` +
-    `- Output ONLY the raw SVG. Start with "<svg" and end with "</svg>". No markdown fences, no commentary.\n` +
-    `- A viewBox MUST be set. Do NOT set width or height attributes (the figure must be responsive).\n` +
-    `- Use ONLY black (#1a1a1a) and light gray (#e5e5e5) fills. No color.\n` +
-    `- Font: sans-serif, minimum 12px.\n` +
-    `- Fully self-contained: no external references, no <image> tags.\n` +
-    `Suitable content: block diagrams, signal flow graphs, waveforms, filter response sketches, state machines, simple mathematical illustrations.\n\n` +
-    `If the description cannot be represented as a clean technical SVG (e.g. a photograph or complex real-world scene), reply with the single word SKIP and nothing else.`;
+    `Generate ONE clean, technically accurate SVG diagram illustrating this single concept for a study guide.\n\n` +
+    `Diagram to draw: ${description}\n` +
+    `(It appears in the section "${sectionTitle}" — for relevance only.)\n\n` +
+    `Output rules — follow EXACTLY:\n` +
+    `- Output ONLY the raw SVG markup, starting with "<svg" and ending with "</svg>". No prose, no markdown fences, no comments.\n` +
+    `- Set a viewBox (e.g. "0 0 640 400"). Do NOT set width/height attributes so it scales responsively.\n` +
+    `- Leave at least 24px of padding inside the viewBox on every side so nothing is clipped.\n` +
+    `- The diagram renders on a WHITE background. Draw strokes and text in black (#1a1a1a); use light gray (#e5e5e5) only for subtle fills/shading. No other colors, no background <rect>.\n` +
+    `- Lines: stroke-width 2, shape-rendering not required. Text: sans-serif, font-size >= 16, centered on the element it labels, never overlapping lines or other text.\n` +
+    `Content rules:\n` +
+    `- Draw ONLY the diagram and SHORT labels intrinsic to it (component names, signal names like V+, Vout, axis labels). \n` +
+    `- Do NOT render the section title, the description sentence, explanatory paragraphs, captions, or any prose inside the SVG.\n` +
+    `- Lay elements out with clear spacing; align connections to the correct terminals; keep it uncluttered and correct over decorative.\n` +
+    `- Fully self-contained: no external references, no <image> tags, no <script>, no CSS @import.\n\n` +
+    `Good fits: circuit symbols, block/flow diagrams, signal-flow graphs, waveforms, plots/response sketches, state machines, simple geometric or mathematical illustrations.\n` +
+    `If the concept cannot be drawn as a clean accurate line diagram (e.g. a photo or complex real-world scene), reply with the single word SKIP and nothing else.`;
 
   try {
-    const generator = llm.withConfig({ temperature: 0.2, maxTokens: 2048 });
+    const generator = llm
+      .withTask("visual-svg")
+      .withConfig({ temperature: 0.2, maxTokens: 2048 });
     const raw = (await generator.ask(prompt, opts)).trim();
 
     if (raw === "SKIP" || !raw.startsWith("<svg") || !raw.includes("</svg>")) {
